@@ -1,13 +1,13 @@
 /*
-	NDI sender
+	ofxNDI + ImGui Helpers
 
-	using the NDI SDK to send the frames via network
+	Providing easy to use widgets for controlling ofxNDI components with ofxImGui.
 
-	https://ndi.video/
+	Enable with `ofxAddons_ENABLE_IMGUI`, automatically defined when ofxImGui is included.
 
-	Copyright (C) 2016-2024 Lynn Jarvis.
+	Note: You need the develop branch available here. https://github.com/jvcleave/ofxImGui/tree/develop
 
-	http://www.spout.zeal.co
+	Copyright (C) 2024 Daan de Lange.
 
 	=========================================================================
 	This program is free software: you can redistribute it and/or modify
@@ -24,11 +24,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 	=========================================================================
 
-	08.07.18 - Use ofxNDIsend class
-	07.12.19 - remove iostream
-	26.12.21 - Correct m_pbo dimension from 2 to 3. PR #27 by Dimitre
+    29.09.24 - Initial Implementation with ofxNDIsender gui helpers
 
 */
+
 #pragma once
 
 #ifndef __ofxNDIImGuiEx__

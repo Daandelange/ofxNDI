@@ -25,6 +25,7 @@
 	=========================================================================
 
 	29.09.24 - Initial Implementation with ofxNDIsender gui helpers
+	04.10.24 - Add Receiver helpers
 
 */
 
@@ -34,13 +35,16 @@
 #include <string>
 #include <map>
 #include "ofAppRunner.h"
+#include "ImHelpers.h" // for AddImage
+#include "imgui_internal.h" // for ImMin
 
 namespace ImGuiEx {
 
+//--------------------------------------------------------------
 // Private Helpers
-// - - - - - - - - -
 // Defined in CPP so nobody relies on it, for internal use only.
 // Mainly used to cache the server name, width, height which are unset when turned off.
+//--------------------------------------------------------------
 struct ofxNDIsenderCreationSettings {
     char name[256];
     unsigned int width = 0;
@@ -102,16 +106,17 @@ inline ofxNDIsenderCreationSettings& getIdentity(ofxNDIsender& sender, const cha
 }
 
 // Maths from ofxNDIsend::SetFormat
-struct ofxNDIsenderFormatGui {
+struct ofxNDIVideoFormatGui {
     NDIlib_FourCC_video_type_e code;
     const char name[5] = "";
-    ofxNDIsenderFormatGui()=delete;
-    ofxNDIsenderFormatGui(NDIlib_FourCC_video_type_e format) :
+    ofxNDIVideoFormatGui()=delete;
+    ofxNDIVideoFormatGui(NDIlib_FourCC_video_type_e format) :
         code(format),
         name { static_cast<char>(format & 0xFF), static_cast<char>((format >> 8) & 0xFF), static_cast<char>((format >> 16) & 0xFF), static_cast<char>((format >> 24) & 0xFF), '\0' }
     {}
 };
-const static ofxNDIsenderFormatGui supportedFormats[] = {
+// Hardcoded list of supported ofxNDI formats
+const static ofxNDIVideoFormatGui supportedFormats[] = {
   {NDIlib_FourCC_video_type_BGRA},
   {NDIlib_FourCC_video_type_BGRX},
   {NDIlib_FourCC_video_type_RGBA},
@@ -119,8 +124,64 @@ const static ofxNDIsenderFormatGui supportedFormats[] = {
   {NDIlib_FourCC_video_type_UYVY}
 };
 
-// Public functions
-// - - - - - - - - -
+
+const char* getFrameType(const NDIlib_frame_type_e& type){
+    const char* frameType = "Unknown";
+
+    switch(type){
+        case NDIlib_frame_type_none:
+            frameType = "None";
+            break;
+        case NDIlib_frame_type_video:
+            frameType = "Video";
+            break;
+        case NDIlib_frame_type_audio:
+            frameType = "Audio";
+            break;
+        case NDIlib_frame_type_metadata:
+            frameType = "MetaData";
+            break;
+        case NDIlib_frame_type_error:
+            frameType = "Error";
+            break;
+        case NDIlib_frame_type_status_change:
+            frameType = "StatusChange";
+            break;
+        default:
+            break;
+    }
+    return frameType;
+}
+// from ofGetTimeStampString, but with extra time arg instead of now.
+std::string getTimestampString(uint64_t timestamp, const string& timestampFormat){
+	std::stringstream str;
+	double timeStampSeconds = ((double)timestamp)/10000000;
+	auto now = std::chrono::system_clock::from_time_t(timeStampSeconds);
+	auto t = std::chrono::system_clock::to_time_t(now);
+	std::chrono::duration<double> s = now - std::chrono::system_clock::from_time_t(t);
+	int ms = s.count() * 1000;
+
+	auto tm = *std::localtime(&t);
+	constexpr int bufsize = 256;
+	char buf[bufsize];
+
+	// Beware! an invalid timestamp string crashes windows apps.
+	// so we have to filter out %i (which is not supported by vs)
+	// earlier.
+	auto tmpTimestampFormat = timestampFormat;
+	ofStringReplace(tmpTimestampFormat, "%i", ofToString(ms, 3, '0'));
+
+	if (strftime(buf,bufsize, tmpTimestampFormat.c_str(),&tm) != 0){
+		str << buf;
+	}
+	str << " " << std::setfill('0') << std::setw(3) << ((int)(glm::mod(timeStampSeconds, 1.0)*1000)) << "ms";
+	auto ret = str.str();
+	return ret;
+}
+
+//--------------------------------------------------------------
+// NDISender widgets
+//--------------------------------------------------------------
 
 // Draws sender setup settings
 bool ofxNdiSenderSetup(ofxNDIsender& ndiSender, const char* serverNameToCreate, unsigned int serverWidth, unsigned int serverHeight){
@@ -261,7 +322,7 @@ inline bool ofxNdiSenderClockVideo(ofxNDIsender& ndiSender){
 
 inline bool ofxNdiSenderFormat(ofxNDIsender& ndiSender){
     bool didChange = false;
-    auto currentCC = ofxNDIsenderFormatGui(ndiSender.GetFormat());
+    auto currentCC = ofxNDIVideoFormatGui(ndiSender.GetFormat());
     if(ImGui::BeginCombo("Color Format", currentCC.name)){
         bool knownSelected = false;
         for(auto fcc : supportedFormats){
@@ -294,7 +355,7 @@ void ofxNdiSenderStatusText(ofxNDIsender& ndiSender){
     ImGui::Text("Target FPS  : %.3f", ndiSender.GetFrameRate());
     ImGui::Text("Real FPS    : %.3f", ndiSender.GetFps());
 
-    auto currentCC = ofxNDIsenderFormatGui(ndiSender.GetFormat());
+    auto currentCC = ofxNDIVideoFormatGui(ndiSender.GetFormat());
     ImGui::Text("PixelFormat : %s\n", currentCC.name);
 
     const char* ndiFormatStr = "Other / Unknown";
@@ -309,7 +370,7 @@ void ofxNdiSenderStatusText(ofxNDIsender& ndiSender){
             break;
     }
     ImGui::Text("ofxNDI mode : %s", ndiFormatStr);
-    IMGUI_HELPMARKER("The YUV codec decodes data on the GPU. Performance varies depending on your GPU.");
+    IMGUI_HELPMARKER("The YUV codec decodes data on the GPU.\nPerformance varies depending on your GPU.");
 
     ImGui::Text("Asynchronous: %s", ndiSender.GetAsync()?"Yes":"No");
     ImGui::Text("Readback    : %s", ndiSender.GetReadback()?"Yes":"No");
@@ -317,6 +378,225 @@ void ofxNdiSenderStatusText(ofxNDIsender& ndiSender){
     ImGui::Text("ClockVideo  : %s", ndiSender.GetClockVideo()?"Yes":"No");
 
     ImGui::Text("NDI version : %s", ndiSender.GetNDIversion().c_str());
+}
+
+//--------------------------------------------------------------
+// NDIreceiver widgets
+//--------------------------------------------------------------
+
+
+bool ofxNdiReceiverSetup(ofxNDIreceiver& ndiReceiver, bool showAdvancedOptions){
+    bool didChange = false;
+    bool breceiverEnabled = ndiReceiver.ReceiverCreated();
+    bool bAsyncUpload = ndiReceiver.GetUpload();
+
+    // Enable / Disable
+    if(ImGui::Checkbox("Receiver enabled", &breceiverEnabled)){
+        if(!breceiverEnabled)
+            ndiReceiver.ReleaseReceiver();
+        else
+            ndiReceiver.CreateReceiver();
+        didChange |= true;
+    }
+
+    // Finder controls
+    if(showAdvancedOptions){
+        // No getter : buttons to enable/disable
+        ImGui::Text("Finder: ");
+        ImGui::SameLine();
+        if(ImGui::Button("Create")){
+            ndiReceiver.CreateFinder();
+            didChange |= true;
+        }
+        ImGui::SameLine();
+        if(ImGui::Button("Release")){
+            ndiReceiver.ReleaseFinder();
+            didChange |= true;
+        }
+    }
+
+    // Bandwidth has no getter, so use buttons here
+    ImGui::Text("Bandwidth: ");
+    ImGui::SameLine();
+    if(ImGui::Button("Low")){
+        ndiReceiver.SetLowBandwidth(true);
+        ndiReceiver.CreateReceiver(); // Fixme: Needs a restart !
+        didChange |= true;
+    }
+    ImGui::SameLine();
+    if(ImGui::Button("High")){
+        ndiReceiver.SetLowBandwidth(false);
+        ndiReceiver.CreateReceiver();
+        didChange |= true;
+    }
+
+    // Audio has no getter, so use buttons here
+    ImGui::Text("Audio: ");
+    ImGui::SameLine();
+    if(ImGui::Button("Enable")){
+        ndiReceiver.SetAudio(true);
+        didChange |= true;
+    }
+    ImGui::SameLine();
+    if(ImGui::Button("Disable")){
+        ndiReceiver.SetAudio(false);
+        didChange |= true;
+    }
+
+    // Upload method
+    if(ImGui::Checkbox("Async upload", &bAsyncUpload)){
+        ndiReceiver.SetUpload(bAsyncUpload);
+        didChange |= true;
+    }
+
+    if(showAdvancedOptions) ImGui::TextDisabled("(Changes above may need a restart)");
+
+    return didChange;
+}
+
+bool ofxNdiReceiverServerSelector(ofxNDIreceiver& ndiReceiver, bool showAdvancedOptions){
+    bool bConnected = ndiReceiver.ReceiverConnected();
+    int nsenders = ndiReceiver.GetSenderCount();
+    bool ret = false;
+
+    // Connection status
+    ImGui::BeginDisabled();
+    ImGui::Checkbox("Receiver Connected", &bConnected);
+    ImGui::EndDisabled();
+
+    // Server listening to
+    if(showAdvancedOptions){
+        if(!bConnected){
+            ImGui::TextDisabled("Connecting...");
+        }
+        else {
+            ImGui::Text("%s", ndiReceiver.GetSenderName().c_str());
+            if(ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary)){
+                if(ImGui::BeginTooltip()){
+                    ImGui::Text("[%i/%i] %s", ndiReceiver.GetSenderIndex(), nsenders, ndiReceiver.GetSenderName().c_str());
+                }
+                ImGui::EndTooltip();
+            }
+        }
+    }
+    ImGui::Text("Server FPS : %3.0f", ndiReceiver.GetSenderFps());
+
+    // Servers list
+    std::string curSenderName = ndiReceiver.GetSenderName();
+    if(ImGui::BeginCombo("Server Selection", curSenderName.c_str())){
+        auto servers = ndiReceiver.GetSenderList();
+        for(auto serverName : servers){
+            if(ImGui::Selectable(serverName.c_str(), curSenderName == serverName)){
+                ndiReceiver.SetSenderName(serverName);
+                ret = true;
+            }
+        }
+
+        if(servers.size()==0){
+            ImGui::TextDisabled("[ No Servers Available ]");
+        }
+        ImGui::EndCombo();
+    }
+    if(showAdvancedOptions && ImGui::SmallButton("Refresh Servers")){
+        ndiReceiver.RefreshSenders(100);
+    }
+
+    return ret;
+}
+
+void ofxNdiReceiverFrameInfo(ofxNDIreceiver& ndiReceiver, bool showAdvancedOptions){
+    unsigned int width = ndiReceiver.GetSenderWidth();
+    unsigned int height = ndiReceiver.GetSenderHeight();
+    int fps = ndiReceiver.GetFps();
+
+    if(!showAdvancedOptions){
+        ImGui::Text("Frame info : %u x %u @ %3ifps", width, height, fps);
+    }
+    else {
+        ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+        if(ImGui::TreeNode("Frame information", "Frame Info (%u x %u @ %3ifps)", width, height, fps)){
+            uint64_t timecode = ndiReceiver.GetVideoTimecode();
+            uint64_t timestamp = ndiReceiver.GetVideoTimestamp();
+            ofxNDIVideoFormatGui format = ofxNDIVideoFormatGui(ndiReceiver.NDIreceiver.GetVideoType());
+
+            ImGui::BulletText("Resolution    : %u x %u", width, height);
+            ImGui::BulletText("Real FPS      : %i", fps);
+            ImGui::BulletText("Pixel format  : %s\n", format.name);
+            ImGui::BulletText("Frame type    : %s", getFrameType(ndiReceiver.GetFrameType()));
+            ImGui::BulletText("Frame meta    : %s", ndiReceiver.GetMetadataString().c_str());
+            ImGui::BulletText("Frame is meta : %s", ndiReceiver.IsMetadata()?"Yes":"No");
+            ImGui::BulletText("Time code     : %llu", timecode);
+            //ImGui::BulletText("Timestamp     : %llu", timestamp); // To display the raw data
+            ImGui::BulletText("Timestamp     : %s", getTimestampString(timestamp, "%F %T").c_str());
+
+            ImGui::BulletText("Audio Frame       : %s", ndiReceiver.IsAudioFrame()?"Yes":"No");
+            ImGui::BulletText("Audio channels    : %i", ndiReceiver.GetAudioChannels());
+            ImGui::BulletText("Audio samples     : %i", ndiReceiver.GetAudioSamples());
+            ImGui::BulletText("Audio sample rate : %i", ndiReceiver.GetAudioSampleRate());
+
+            ImGui::TreePop();
+        }
+    }
+}
+
+void ofxNdiReceiverStatusText(ofxNDIreceiver& ndiReceiver){
+    const bool connected = ndiReceiver.ReceiverConnected();
+    int connectedTo = ndiReceiver.GetSenderIndex();
+    uint64_t timecode = ndiReceiver.GetVideoTimecode();
+    uint64_t timestamp = ndiReceiver.GetVideoTimestamp();
+    int64_t ftime = ndiReceiver.GetVideoTimestamp();
+    unsigned int width = ndiReceiver.GetSenderWidth();
+    unsigned int height = ndiReceiver.GetSenderHeight();
+    float ratio = height>0?(((float)width)/height):0.f;
+
+    // Status
+    ImGui::Text("Receiver.init: %s", ndiReceiver.ReceiverCreated()?"Yes":"No");
+    //ImGui::Text("Finder.init  : %s", ndiReceiver.FinderCreated()?"Yes":"No"); // unavailable
+    ImGui::Text("Async upload : %s", ndiReceiver.GetUpload()?"Yes":"No");
+    // todo: bandwidth when getter is available :(
+
+    // Connection info
+    ImGui::Text("Server connected : %s", connected?"Yes":"No");
+    if(ImGui::TreeNode("Connection information")){
+        ImGui::Text("Server name : %s", ndiReceiver.GetSenderName().c_str());
+        ImGui::Text("Server FPS  : %.3f", ndiReceiver.GetSenderFps());
+        ImGui::TreePop();
+    }
+
+    // Frame information
+    ImGuiEx::ofxNdiReceiverFrameInfo(ndiReceiver, true);
+
+    // List senders
+    int nsenders = ndiReceiver.GetSenderCount();
+    if(ImGui::TreeNode("Available Servers", "Available Servers : %i", nsenders)){
+        auto servers = ndiReceiver.GetSenderList();
+        for(auto serverName : servers){
+            ImGui::BulletText("%s", serverName.c_str());
+        }
+
+        if(servers.size()==0){
+            ImGui::TextDisabled("[ No Servers Available ]");
+        }
+        ImGui::TreePop();
+    }
+
+
+    ImGui::Text("NDI version : %s", ndiReceiver.GetNDIversion().c_str());
+}
+
+void ofxNdiReceiverImage(ofTexture& texture, ofxNDIreceiver* sender){
+    // Display info
+    if(sender!=nullptr)
+        ImGui::Text("Received image (%u x %u @ %ufps)", sender->GetSenderWidth() , sender->GetSenderHeight(), sender->GetFps());
+    else
+        ImGui::Text("Received image (%.0f x %.0f)", texture.getWidth(), texture.getHeight());
+
+    // Calculate proportional size
+    ImVec2 availableSpace = ImMax(ImGui::GetContentRegionAvail(), ImVec2(200,200));
+    float ratio = texture.getHeight() / texture.getWidth();
+
+    // Display the image
+    ofxImGui::AddImage(texture, glm::vec2(availableSpace.x, availableSpace.x*ratio));
 }
 
 } // namespace ImGuiEx

@@ -39,6 +39,7 @@
 #include "ofMain.h"
 #include "imgui.h"
 #include "ofxNDIsender.h"
+#include "ofxNDIreceiver.h"
 
 #ifndef IMGUI_HELPMARKER
 #define IMGUI_HELPMARKER(STR) \
@@ -56,12 +57,15 @@
 
 namespace ImGuiEx {
 
-    // Draws Sender settings
+    //--------------------------------------------------------------
+    // NDIsender widgets
+    //--------------------------------------------------------------
+    // Sender setup
     // Server name, width and height : only if ofxNdiSenderImGuiSettingsFlags_EnableDisable is set, for when the server is enabled.
     // Either all 3 optional args are needed or none is considered (they are bound together, changing one requires resetting the whole server)
     bool ofxNdiSenderSetup(ofxNDIsender& sender, const char* serverNameToCreate=nullptr, unsigned int serverWidth=0u, unsigned int serverHeight=0u);
 
-    // Runtime settings
+    // Sender runtime settings
     bool ofxNdiSenderSettings(ofxNDIsender& sender);
     inline bool ofxNdiSenderFrameRate(ofxNDIsender& ndiSender);
     inline bool ofxNdiSenderAsync(ofxNDIsender& ndiSender);
@@ -70,8 +74,23 @@ namespace ImGuiEx {
     inline bool ofxNdiSenderClockVideo(ofxNDIsender& ndiSender);
     inline bool ofxNdiSenderFormat(ofxNDIsender& ndiSender);
 
-    // Draws the whole status as text
+    // Sender status text
     void ofxNdiSenderStatusText(ofxNDIsender& sender);
+
+    //--------------------------------------------------------------
+    // NDIreceiver widgets
+    //--------------------------------------------------------------
+    // Receiver setup
+    bool ofxNdiReceiverSetup(ofxNDIreceiver& receiver, bool showAdvancedOptions=false);
+
+    // Receiver runtime settings
+    bool ofxNdiReceiverSettings(ofxNDIreceiver& ndiReceiver);
+    bool ofxNdiReceiverServerSelector(ofxNDIreceiver& ndiReceiver, bool showAdvancedOptions=false);
+    void ofxNdiReceiverFrameInfo(ofxNDIreceiver& ndiReceiver, bool showAdvancedOptions=false);
+
+    // Receiver status text
+    void ofxNdiReceiverStatusText(ofxNDIreceiver& ndiReceiver);
+    void ofxNdiReceiverImage(ofTexture& texture, ofxNDIreceiver* ndiReceiver=nullptr);
 }
 
 #endif // ofxAddons_ENABLE_IMGUI

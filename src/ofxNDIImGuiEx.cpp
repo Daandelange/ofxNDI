@@ -217,12 +217,14 @@ bool ofxNdiSenderSetup(ofxNDIsender& ndiSender, const char* serverNameToCreate, 
 
     // Width
     unsigned int whStep = 1u, whStepFast=100;
-    if(ImGui::InputScalar("Width", ImGuiDataType_U32, bIsEditing?&ndiSenderEditing.second.width:&id.width, &whStep, &whStepFast, "%u", ImGuiInputTextFlags_EnterReturnsTrue)){
+    ImGui::InputScalar("Width", ImGuiDataType_U32, bIsEditing?&ndiSenderEditing.second.width:&id.width, &whStep, &whStepFast, "%u", ImGuiInputTextFlags_None);
+    if(ImGui::IsItemDeactivatedAfterEdit()){
         didChange = true;
     }
 
     // Height
-    if(ImGui::InputScalar("Height", ImGuiDataType_U32, bIsEditing?&ndiSenderEditing.second.height:&id.height, &whStep, &whStepFast, "%u", ImGuiInputTextFlags_EnterReturnsTrue)){
+    ImGui::InputScalar("Height", ImGuiDataType_U32, bIsEditing?&ndiSenderEditing.second.height:&id.height, &whStep, &whStepFast, "%u", ImGuiInputTextFlags_None);
+    if(ImGui::IsItemDeactivatedAfterEdit()){
         didChange = true;
     }
     if(!bIsEditing) ImGui::EndDisabled();
@@ -273,7 +275,8 @@ bool ofxNdiSenderSettings(ofxNDIsender& ndiSender){
 
 inline bool ofxNdiSenderFrameRate(ofxNDIsender& ndiSender){
     double ndiFpsCap = ndiSender.GetFrameRate();
-    if(ImGui::InputDouble("FPS Cap", &ndiFpsCap, 1.f, 1.f, "%.0f", ImGuiInputTextFlags_EnterReturnsTrue)){
+    ImGui::InputDouble("FPS Cap", &ndiFpsCap, 1.f, 1.f, "%.0f", ImGuiInputTextFlags_None);
+    if(ImGui::IsItemDeactivatedAfterEdit()){
         ndiSender.SetFrameRate(ndiFpsCap);
         return true;
     }

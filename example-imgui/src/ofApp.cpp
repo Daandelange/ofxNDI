@@ -38,7 +38,8 @@ void ofApp::setup(){
 	ofSetFrameRate(60);
 
 	// GUI Setup
-	gui.setup();
+	gui.setup(nullptr, true, ImGuiConfigFlags_ViewportsEnable);
+	bShowGui=true;
 	ofDisableArbTex(); // Needed for displaying imgui images !
 
 	// Sender setup
@@ -89,6 +90,7 @@ void ofApp::draw() {
 	ndiSender.SendImage(senderFbo);
 
 	// Draw the GUI
+	if(bShowGui){
 	gui.begin();
 
 	// Menu bar
@@ -116,6 +118,10 @@ void ofApp::draw() {
 			}
 			ImGui::Text("Uptime     : %.1f seconds", ofGetElapsedTimef() );
 			ImGui::Text("Resolution : %i x %i (ratio %.2f)", ofGetWindowWidth(), ofGetWindowHeight(), (((float)ofGetWindowWidth())/ofGetWindowHeight()) );
+
+			ImGui::Checkbox("Show GUI", &bShowGui);
+			ImGui::SameLine();
+			ImGui::TextDisabled(" Cmd/Ctrl + G");
 
 			ImGui::EndMenu();
 		}
@@ -165,6 +171,7 @@ void ofApp::draw() {
 	ImGui::End();
 
 	gui.end();
+	} // Endif bShowGui
 }
 
 //--------------------------------------------------------------
@@ -224,4 +231,12 @@ void ofApp::exit() {
 	ndiReceiver.ReleaseReceiver();
 	ndiSender.ReleaseSender();
 
+}
+
+//--------------------------------------------------------------
+void ofApp::keyPressed( ofKeyEventArgs & key ){
+	// Toggle GUI
+	if((key.key=='G'||key.key=='g') && key.hasModifier(OF_KEY_COMMAND | OF_KEY_CONTROL)){
+		bShowGui = !bShowGui;
+	}
 }

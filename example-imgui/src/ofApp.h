@@ -39,8 +39,11 @@ class ofApp : public ofBaseApp{
 		void draw();
 		void exit();
 
+		void keyPressed( ofKeyEventArgs & key );
+
 		// GUI
 		ofxImGui::Gui gui;
+		bool bShowGui = true;
 
 		// Receiver
 		ofxNDIreceiver ndiReceiver;

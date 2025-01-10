@@ -100,7 +100,8 @@ void ofApp::draw() {
 			ImGui::TextDisabled("They affect ofxNDI's performance.");
 			static int frameRate = ofGetTargetFrameRate();
 			ImGui::Text("FPS    : %03.0f / %03i", ofGetFrameRate(), frameRate);
-			if(ImGui::InputInt("Target FPS", &frameRate, 1, 10, ImGuiInputTextFlags_EnterReturnsTrue )){
+			ImGui::InputInt("Target FPS", &frameRate, 1, 10, ImGuiInputTextFlags_None );
+			if(ImGui::IsItemDeactivatedAfterEdit()){
 				ofSetFrameRate(frameRate);
 				frameRate = ofGetTargetFrameRate();
 			}

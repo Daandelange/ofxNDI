@@ -211,7 +211,8 @@ bool ofxNdiSenderSetup(ofxNDIsender& ndiSender, const char* serverNameToCreate, 
 
     // Name
     if(!bIsEditing) ImGui::BeginDisabled();
-    if(ImGui::InputText("Server name", bIsEditing?&ndiSenderEditing.second.name[0]:&id.name[0], IM_ARRAYSIZE(id.name), ImGuiInputTextFlags_EnterReturnsTrue)){
+    ImGui::InputText("Server name", bIsEditing?&ndiSenderEditing.second.name[0]:&id.name[0], IM_ARRAYSIZE(id.name), ImGuiInputTextFlags_None);
+    if(ImGui::IsItemDeactivatedAfterEdit()){
         didChange = true;
     }
 

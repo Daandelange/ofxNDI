@@ -119,20 +119,28 @@ void ofApp::draw() {
 			ImGui::Text("Uptime     : %.1f seconds", ofGetElapsedTimef() );
 			ImGui::Text("Resolution : %i x %i (ratio %.2f)", ofGetWindowWidth(), ofGetWindowHeight(), (((float)ofGetWindowWidth())/ofGetWindowHeight()) );
 
+			ImGui::SeparatorText("GUI");
 			ImGui::Checkbox("Show GUI", &bShowGui);
 			ImGui::SameLine();
 			ImGui::TextDisabled(" Cmd/Ctrl + G");
+
+			ImGui::SeparatorText("ofApp");
+			ImGui::DragFloat("rot.X speed", &rotXSpeed, 0.005, 0.f, 1.f);
+			ImGui::DragFloat("rot.Y speed", &rotYSpeed, 0.005, 0.f, 1.f);
+			ImGui::DragFloat("hue speed", &hueSpeed, 0.005, 0.f, 1.f);
 
 			ImGui::EndMenu();
 		}
 
 		// Show some status messages in the menu
 		if(ImGui::BeginMenu("Sender")){
+			ImGui::Checkbox("Show sender controls", &bShowSenderCtrls);
 			ImGui::SeparatorText("Sender");
 			ImGuiEx::ofxNdiSenderStatusText(ndiSender);
 			ImGui::EndMenu();
 		}
 		if(ImGui::BeginMenu("Receiver")){
+			ImGui::Checkbox("Show receiver controls", &bShowSenderCtrls);
 			ImGui::SeparatorText("Receiver");
 			ImGuiEx::ofxNdiReceiverStatusText(ndiReceiver);
 
@@ -143,11 +151,16 @@ void ofApp::draw() {
 			}
 			ImGui::EndMenu();
 		}
+		if(ImGui::BeginMenu("Help")){
+			ImGui::TextWrapped("This is an example layout. You can re-arrange the items to your wishes using the ImGui API.");
+			ImGui::SeparatorText("About");
+			ImGui::TextWrapped("In this example, ofxNDI is used to create a recursive video generator, feeding back the image of the receiver into the sender.");
+		}
 	}
 	ImGui::EndMainMenuBar();
 
 	// Receiver window with settings
-	if(ImGui::Begin("Receiver")){
+	if(ImGui::Begin("Receiver", &bShowReceiverCtrls)){
 		ImGui::SeparatorText("Receiver Settings");
 		ImGuiEx::ofxNdiReceiverSetup(ndiReceiver, true);
 
@@ -160,7 +173,7 @@ void ofApp::draw() {
 	ImGui::End();
 
 	// Sender window with settings
-	if(ImGui::Begin("Sender")){
+	if(ImGui::Begin("Sender", &bShowSenderCtrls)){
 		ImGui::SeparatorText("Sender Setup");
 		ImGuiEx::ofxNdiSenderSetup(ndiSender, senderName.c_str(), senderWidth, senderHeight);
 
@@ -181,7 +194,7 @@ void ofApp::DrawSenderGraphics() {
 	senderFbo.begin();
 	ofClear(0, 0, 0, 255);
 	ofPushStyle();
-	float elapsed = glm::mod(ofGetElapsedTimef()*0.2f, 1.f);
+	float elapsed = glm::mod(ofGetElapsedTimef()*hueSpeed, 1.f);
 
 	// Draw receiver behind
 	ofFill();
@@ -217,8 +230,8 @@ void ofApp::DrawSenderGraphics() {
 	senderFbo.end();
 
 	// Rotate the cube
-	rotX += 0.551*.5f;
-	rotY += 0.624 *.5f;
+	rotX += rotXSpeed;
+	rotY += rotYSpeed;
 
 	// Draw the fbo result fitted to the display window
 	senderFbo.draw(0, 0, ofGetWidth(), ofGetHeight());

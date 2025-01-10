@@ -44,6 +44,8 @@ class ofApp : public ofBaseApp{
 		// GUI
 		ofxImGui::Gui gui;
 		bool bShowGui = true;
+		bool bShowSenderCtrls = true;
+		bool bShowReceiverCtrls = true;
 
 		// Receiver
 		ofxNDIreceiver ndiReceiver;
@@ -58,6 +60,9 @@ class ofApp : public ofBaseApp{
 		ofFbo senderFbo;               // Fbo used for graphics and sending
 		float rotX = 0.0f;
 		float rotY = 0.0f;             // Cube rotation increment
+		float rotXSpeed = 0.551 *.5f;
+		float rotYSpeed = 0.624 *.5f;
+		float hueSpeed = 0.2f;
 		void DrawSenderGraphics();     // Rotating cube draw
 
 };

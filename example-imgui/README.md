@@ -13,7 +13,7 @@ You need [the ofxImGui develop branch](https://github.com/jvcleave/ofxImGui/tree
 ## General Usage
 Enable the ImGui widgets within any ofxAddon with the `ofxAddons_ENABLE_IMGUI` define.  
 Without this define, the GUI layer and the ofxImGui dependency stay off.  
-For more information, refer to [the ofxImGui repo docs](https://github.com/jvcleave/ofxImGui/blob/develop/Developers.md#ofxImGui-integration-within-ofxAddons).  
+For more information, refer to [the ofxImGui repo docs](https://github.com/jvcleave/ofxImGui/blob/develop/Developers.md#ofxaddons-with-custom-ofximgui-widgets).  
 
 ## Example Usage
 This folder (`example-imgui`) shows how to use the provided widgets.  

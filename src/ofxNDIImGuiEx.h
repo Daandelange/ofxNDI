@@ -3,9 +3,14 @@
 
 	Providing easy to use widgets for controlling ofxNDI components with ofxImGui.
 
-	Enable with `ofxAddons_ENABLE_IMGUI`, automatically defined when ofxImGui is included.
+	Enable with project-level compilation define `ofxAddons_ENABLE_IMGUI`.
 
 	Note: You need the develop branch available here. https://github.com/jvcleave/ofxImGui/tree/develop
+
+	IMPORTANT SUPPORT NOTE !
+	This GUI layer is provided by contributors and is not actively maintained nor supported by the addon author.
+	Please don't ask for support for it in the ofxNDI repo (but you can in the ofxImGui repo).
+	Community pull requests are welcome for updating the codebase.
 
 	Copyright (C) 2024 Daan de Lange.
 

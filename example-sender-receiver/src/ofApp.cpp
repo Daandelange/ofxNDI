@@ -174,6 +174,24 @@ void ofApp::setup(){
 	//
 	// ndiReceiver.SetAudio(true);
 
+#ifdef BUILDWITHAUDIO
+	auto devices = soundStream.getMatchingDevices("default");
+	if(!devices.empty()){
+		audioSettings.setOutDevice(devices[0]);
+	}
+	audioSettings.setOutListener(this);
+	audioSettings.sampleRate = 48000;//44100;
+	audioSettings.numOutputChannels = 2;
+	audioSettings.numInputChannels = 0;
+	audioSettings.bufferSize = 4800;//512;//2048;//1024;//2048;//512;
+	if(!soundStream.setup(audioSettings)){
+		ofLogWarning("ofApp::Setup") << "ofSoundStream setup failed !";
+	}
+
+	audioSamples.assign(audioSettings.bufferSize*audioSettings.numOutputChannels, 0.0);
+
+	ndiReceiver.SetAudio(enableAudio);
+#endif // BUILDWITHAUDIO
 #else
 
 	senderName = "Openframeworks NDI Sender";
@@ -290,6 +308,30 @@ void ofApp::setup(){
 	// Limit frame rate using timing instead
 	ofSetFrameRate(60);
 
+#ifdef BUILDWITHAUDIO
+	auto devices = soundStream.getMatchingDevices("default");
+	if(!devices.empty()){
+		audioSettings.setOutDevice(devices[0]);
+	}
+	audioSettings.setOutListener(this);
+	audioSettings.sampleRate = 44100;
+	audioSettings.numOutputChannels = 2;
+	audioSettings.numInputChannels = 0;
+	audioSettings.bufferSize = 512;//2048;//1024;//2048;//512;
+	if(!soundStream.setup(audioSettings)){
+		ofLogWarning("ofApp::Setup") << "ofSoundStream setup failed !";
+	}
+
+	audioSamples.assign(audioSettings.bufferSize*audioSettings.numOutputChannels, 0.0);
+
+	ndiSender.SetAudio(enableAudio);
+	ndiSender.SetAudioSampleRate(audioSettings.sampleRate);
+	ndiSender.SetAudioChannels(audioSettings.numOutputChannels);
+	ndiSender.SetAudioSamples(audioSettings.bufferSize);
+	ndiSender.SetAudioTimecode(NDIlib_send_timecode_synthesize);
+	ndiSender.SetAsync(false);
+
+#endif // BUILDWITHAUDIO
 #endif
 	
 }
@@ -449,6 +491,12 @@ void ofApp::ShowInfo() {
 				// str += " Timestamp "; str += std::to_string(timestamp);
 				// ofDrawBitmapString(str, 20, 60);
 
+#ifdef BUILDWITHAUDIO
+				// Audio
+				str = "Audio    (""N"") : ";
+				str += enableAudio?"on":"off";
+				ofDrawBitmapString(str, 20, 76);
+#endif
 			}
 		}
 
@@ -507,6 +555,12 @@ void ofApp::ShowInfo() {
 		str += std::to_string((int)senderHeight);
 		ofDrawBitmapString(str, 20, 130);
 
+#ifdef BUILDWITHAUDIO
+		str = " Audio    (""N"") : ";
+		str += enableAudio?"on":"off";
+		ofDrawBitmapString(str, 20, 146);
+#endif
+
 		// NDI version
 		str = "NDI version - " + ndiSender.GetNDIversion();
 		ofDrawBitmapString(str, 20, ofGetHeight()-10);
@@ -514,6 +568,105 @@ void ofApp::ShowInfo() {
 	}
 #endif
 
+#ifdef BUILDWITHAUDIO
+	// Audio controls
+	int width = glm::max(240, ofGetWidth()/3);
+	ofRectangle audioZone(ofGetWidth()-20-width, 60, width, 50);
+
+	str = "Audio Controls";
+	ofDrawBitmapString(str, audioZone.x, audioZone.y);
+	audioZone.translateY(16);
+
+	str = " Volume  (""M"") : ";
+	str += std::to_string((int)audioVolume);
+	ofDrawBitmapString(str, audioZone.x, audioZone.y);
+	audioZone.translateY(16);
+
+#ifndef BUILDRECEIVER
+	str = " Balance     (""B"") : ";
+	str += std::to_string((int)audioBalance);
+	if(audioBalance <= -1) str += " (left)";
+	else if(audioBalance >=  1) str += " (right)";
+	else if(audioBalance == 0) str += " (center)";
+	ofDrawBitmapString(str, audioZone.x, audioZone.y);
+	audioZone.translateY(16);
+
+	str = " Frequency (""+""""/""""-"") : ";
+	str += std::to_string((int)audioFreq);
+	str += "hz";
+	ofDrawBitmapString(str, audioZone.x, audioZone.y);
+	audioZone.translateY(16);
+#endif
+
+	audioZone.translateY(5);
+
+#ifdef BUILDRECEIVER
+	str = "Incoming Audio   NDI / OpenFrameworks";
+	ofDrawBitmapString(str, audioZone.x, audioZone.y);
+	audioZone.translateY(16);
+
+	str = " Samplerate    : ";
+	str += std::to_string(ndiReceiver.GetAudioSampleRate());
+	str += " / ";
+	str += std::to_string(soundStream.getSampleRate());
+	ofDrawBitmapString(str, audioZone.x, audioZone.y);
+	audioZone.translateY(16);
+
+	str = " Channels      : ";
+	str += std::to_string(ndiReceiver.GetAudioChannels());
+	str += " / ";
+	str += std::to_string(soundStream.getNumOutputChannels());
+	ofDrawBitmapString(str, audioZone.x, audioZone.y);
+	audioZone.translateY(16);
+
+	str = " BufferSize    : ";
+	str += std::to_string(ndiReceiver.GetAudioSamples());
+	str += " / ";
+	str += std::to_string(soundStream.getBufferSize());
+	ofDrawBitmapString(str, audioZone.x, audioZone.y);
+	audioZone.translateY(16);
+
+	const float timeSinceLastData = glm::clamp((ofGetElapsedTimef()-lastAudioFrameTime)*(2.f), 0.f, 1.f);
+	str = " Incoming Data : ";
+	ofDrawBitmapString(str, audioZone.x, audioZone.y);
+	ofPushStyle();
+	ofFill();
+	ofSetColor(255-255*timeSinceLastData);
+	ofDrawCircle(glm::vec2(audioZone.x+str.length()*8+6, audioZone.y-4), 6);
+	ofPopStyle();
+	audioZone.translateY(16);
+	audioZone.translateY(5);
+#endif // !BUILDRECEIVER
+
+	// Draw audio signals
+	for(std::size_t ch=0; ch<audioSettings.numOutputChannels; ch++){
+		ofPushStyle();
+		ofNoFill();
+
+		ofSetColor(225);
+		string chName = "Channel #";
+		chName += std::to_string(ch);
+		ofDrawBitmapString(chName, audioZone.x, audioZone.y);
+		audioZone.translateY(5);
+
+		ofSetLineWidth(1);
+		ofDrawRectangle(audioZone);
+
+		ofSetColor(245, 58, 135);
+		ofSetLineWidth(2);
+
+		ofBeginShape();
+		for (std::size_t i = 0; i < audioSettings.bufferSize; i++){
+			float x =  ofMap(i, 0, audioSettings.bufferSize, 0, audioZone.width, true);
+			ofVertex(audioZone.x+x, audioZone.y + audioZone.height*.5 + audioSamples[i*audioSettings.numOutputChannels+ch]*audioZone.height*.5);
+		}
+		ofEndShape(false);
+
+		ofPopStyle();
+
+		audioZone.translateY(audioZone.height+16);
+	}
+#endif // BUILDWITHAUDIO
 }
 
 //--------------------------------------------------------------
@@ -547,6 +700,21 @@ void ofApp::keyPressed(int key) {
 		else
 			std::cout << "Same sender" << std::endl;
 	}
+
+#ifdef BUILDWITHAUDIO
+	switch (key)
+	{
+		case 'm':
+		case 'M':
+			audioVolume = (audioVolume==0) ? 1.f : 0.f;
+			break;
+		case 'n':
+		case 'N':
+			enableAudio = !enableAudio;
+			ndiReceiver.SetAudio(enableAudio);
+			break;
+	}
+#endif // BUILDWITHAUDIO
 
 #else
 	std::string str;
@@ -622,6 +790,31 @@ void ofApp::keyPressed(int key) {
 			}
 		}
 		break;
+#ifdef BUILDWITHAUDIO
+	case 'm':
+	case 'M':
+		audioVolume = (audioVolume==0) ? 1.f : 0.f;
+		break;
+	case 'b':
+	case 'B':
+		if(audioBalance==0){
+			audioBalance = 1.f;
+		}
+		else if(audioBalance == 1){
+			audioBalance = -1.f;
+		}
+		else audioBalance = 0.f;
+		break;
+	case '+':
+	case '-':
+		audioFreq = glm::clamp(audioFreq + (key=='+'?100:-100), 100u, 2000u);
+		break;
+	case 'n':
+	case 'N':
+		enableAudio = !enableAudio;
+		ndiSender.SetAudio(enableAudio);
+		break;
+#endif
 	}
 
 	// Show the main window
@@ -670,4 +863,79 @@ void ofApp::exit() {
 	ndiSender.ReleaseSender();
 #endif
 
+#ifdef BUILDWITHAUDIO
+	soundStream.close();
+#endif
 }
+
+//--------------------------------------------------------------
+#ifdef BUILDWITHAUDIO
+void ofApp::audioOut(ofSoundBuffer & buffer){
+	if(enableAudio){
+		const float numChannels = buffer.getNumChannels();
+		const float numFrames = buffer.getNumFrames();
+
+#ifndef BUILDRECEIVER
+		// Synthetise a sinewave
+		const float phaseAdder = ((glm::two_pi<float>() * audioFreq) / static_cast<float>(audioSettings.sampleRate));
+		static float phase = 0;
+		for (size_t i = 0; i < numFrames; i++){
+			const float sample = sin(phase);
+			for(size_t ch = 0; ch<numChannels; ch++){
+				float channelBalanceMult = audioBalance==0.f;
+				if(ch==0) channelBalanceMult = glm::clamp(1.f-audioBalance, 0.f, 1.f);
+				else if(ch==1) channelBalanceMult = glm::clamp(1.f+audioBalance, 0.f, 1.f);
+				audioSamples[i*numChannels+ch] = sample * channelBalanceMult;
+				buffer[i*numChannels+ch] = sample * channelBalanceMult * audioVolume;
+			}
+			phase += phaseAdder;
+		}
+		phase = glm::mod(phase, glm::two_pi<float>());
+
+		// Send audio frames to NDI
+		ndiSender.SetAudioData(
+			const_cast<float*>(buffer.getBuffer().data())
+		);
+#else
+		// Receive audio frames and play them
+		float* sound = ndiReceiver.GetAudioData();
+		if(sound!=nullptr){
+			int numFrames = ndiReceiver.GetAudioSamples();
+			int numChannels = ndiReceiver.GetAudioChannels();
+			int sampleRate = ndiReceiver.GetAudioSampleRate();
+			lastAudioFrameTime = ofGetElapsedTimef();
+
+			// Does the buffer match ?
+			// (logging and allocating is not recomended from the audio process!!!)
+//			if(buffer.getSampleRate() != sampleRate || buffer.getNumChannels() != numChannels || buffer.getNumFrames() != numFrames){
+//				ofLogNotice("ofApp::audioOut") << "Buffer size don't match : Resizing ! sr=" << buffer.getSampleRate() << "/" << sampleRate << " frame=" << buffer.getNumFrames() << "/" << numFrames << " ch=" << buffer.getNumChannels() << "/" << numChannels;
+////				audioSettings.numOutputChannels = numChannels;
+////				audioSettings.sampleRate = sampleRate;
+////				audioSettings.bufferSize = numFrames;
+////				soundStream.setup(audioSettings);
+////				return;
+//			}
+			if(audioSamples.size() != numFrames*numChannels){
+				audioSamples.resize(numFrames*numChannels, 0);
+			}
+
+			// Noworks...
+			//ndiReceiver.GetAudioData(*const_cast<float*>(buffer.getBuffer().data()), sampleRate, numFrames, numChannels);
+
+			// Note: Sometimes, buffer size don't match !
+			// ("NDI Test Patterns.app" sends 4800 samples, then OF sets it to 4096)
+			for (std::size_t i = 0; i < numFrames; i++){
+				for(std::size_t ch = 0; ch<numChannels; ch++){
+					const std::size_t indexInterleaved = i*numChannels+ch; // Interleaved
+					const std::size_t indexNormal = i+ch*numFrames; // non-interleaved
+
+					audioSamples[indexInterleaved] = sound[indexNormal];
+					if(indexInterleaved < buffer.size()) // Drops frames = crackling
+						buffer[indexInterleaved] = sound[indexNormal]*audioVolume;
+				}
+			}
+		}
+#endif
+	}
+}
+#endif // BUILDWITHAUDIO

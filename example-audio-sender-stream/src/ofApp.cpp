@@ -82,9 +82,9 @@ void ofApp::setup()
 	soundStream.setup(settings);
 
 	printf("\nSoundstream setup\n");
-	printf("  nSamples     = %d\n", nSamples);
-	printf("  Sample rate  = %d\n", (int)settings.sampleRate);
-	printf("  N channels   = %d\n", (int)settings.numInputChannels);
+	printf("  nSamples     = %d --> %d\n", nSamples, soundStream.getBufferSize());
+	printf("  Sample rate  = %d --> %d\n", (int)settings.sampleRate, soundStream.getSampleRate());
+	printf("  N channels   = %d --> %d\n", (int)settings.numInputChannels, soundStream.getNumInputChannels());
 	printf("\n");
 
 	lAudio.assign(nSamples,  0.0);
@@ -232,6 +232,9 @@ void ofApp::audioIn(ofSoundBuffer& input)
 //--------------------------------------------------------------
 void ofApp::exit()
 {
+	// Close soundstream
+	soundStream.close();
+
 	// Release the sender
 	// This releases the audio data buffer
 	ndiSender.ReleaseSender();

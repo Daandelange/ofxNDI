@@ -2,7 +2,6 @@
 
 #include "ofMain.h"
 #include "ofxNDI.h"    // ofxNDI classes
-#include "AudioFile.h" // Audio support using miniaudio
 
 class ofApp : public ofBaseApp{
 

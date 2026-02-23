@@ -32,8 +32,19 @@
 // Enable this define to buid a receiver rather that a sender
 // #define BUILDRECEIVER
 
+// Enable this define to also send/receive audio frames
+// #define BUILDWITHAUDIO
+
 #include "ofMain.h"
 #include "ofxNDI.h" // NDI classes
+
+#ifdef BUILDWITHAUDIO
+#	ifdef BUILDRECEIVER
+#		define AUDIODEFAULTMUTE true
+#	else
+#		define AUDIODEFAULTMUTE false
+#	endif
+#endif
 
 class ofApp : public ofBaseApp{
 
@@ -74,5 +85,21 @@ class ofApp : public ofBaseApp{
 		double framerate = 60.0;
 #endif
 
+#ifdef BUILDWITHAUDIO
+		ofSoundStreamSettings audioSettings;
+		ofSoundStream soundStream;
+		virtual void audioOut(ofSoundBuffer &buffer);
+		vector <float> audioSamples;
+		bool enableAudio = true;
+		float audioVolume = 1.f * AUDIODEFAULTMUTE; // openframeworks playback only !
+
+#ifdef BUILDRECEIVER
+		float lastAudioFrameTime = 0.f;
+#else
+		float audioBalance = 0; // -1 to 1
+		unsigned int audioFreq = 800;
+#endif // BUILDRECEIVER
+
+#endif // BUILDWITHAUDIO
 
 };

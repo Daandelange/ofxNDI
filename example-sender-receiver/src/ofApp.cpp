@@ -249,6 +249,9 @@ void ofApp::setup(){
 	// rate than the receiver can process them and hesitations may be evident.
 	// ndiSender.SetAsync(true);
 
+	ndiSender.SetClockVideo(false);
+	ndiSender.SetAudioType(audio_frame_interleaved_32f_t);
+
 	// Create a sender with RGBA output format
 	bInitialized = ndiSender.CreateSender(senderName.c_str(), senderWidth, senderHeight);
 
@@ -894,8 +897,10 @@ void ofApp::audioOut(ofSoundBuffer & buffer){
 
 		// Send audio frames to NDI
 		ndiSender.SetAudioData(
-			const_cast<float*>(buffer.getBuffer().data())
+			&audioSamples[0]
+//			const_cast<float*>(buffer.getBuffer().data())
 		);
+		ndiSender.SendAudio();
 #else
 		// Receive audio frames and play them
 		float* sound = ndiReceiver.GetAudioData();

@@ -42,6 +42,7 @@ class ofApp : public ofBaseApp{
 		int bufferSize = 0;            // Buffer size (change with sample number)
 		int bufferCounter = 0;
 		int drawCounter = 0;
+		bool bSoundStream = false;     // Soundstream initialized
 
 		void DrawAudio();              // Audio waveform
 		vector<float> lAudio;

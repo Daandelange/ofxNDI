@@ -164,6 +164,10 @@ void ofApp::DrawGraphics()
 
 void ofApp::DrawAudio()
 {
+	// Soudstream must be initialized
+	if(!bSoundStream)
+		return;
+
 	// Local copy of vectors to minimize mutex lock time
 	{
         std::unique_lock<std::mutex> lock(audioMutex);

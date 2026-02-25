@@ -5,14 +5,24 @@ void ofApp::setup(){
 
 	ofBackground(0);
 
-	// Input video file
-	std::string inputVideo = ofToDataPath("happy-jumping.mp4", true);
-	// std::string inputVideo = ofToDataPath("Audio Video Sync Test.mp4", true);
-	printf("Video file\n%s\n", inputVideo.c_str());
+	//
+	// Input video files
+	// 30 FPS video, 44.1 Khz Audio
+	//
+	// std::string inputVideo = ofToDataPath("Audio-Video-Sync-Test.mp4", true);
+	// https://www.youtube.com/watch?v=ucZl6vQ_8Uo (Created by DJO)
+	//
+	// std::string inputVideo = ofToDataPath("Audio-Video-Sync-Test-Card.mp4", true);
+	// https://www.youtube.com/watch?v=QzomK1fdSUg
+	//
+	std::string inputVideo = ofToDataPath("EasyLife-Audio-Video-Sync.mp4", true);
+	// https://www.youtube.com/watch?v=K0uxjdcZWyk
 
-	// Create an audio file from the video file on the first pass
-	// Returns the existing path if the file exists
-	// Requires FFmpeg
+	printf("Video file\n%s\n", inputVideo.c_str());
+	
+	// Create an mp3 audio file from the video file on the first pass.
+	// Requires FFmpeg to extract an audio file from the video.
+	// Returns the existing path if the file exists.
 	std::string inputAudio = audiofile.CreateAudioFile(inputVideo);
 	printf("Audio file\n%s\n", inputAudio.c_str());
 
@@ -80,8 +90,10 @@ void ofApp::setup(){
 	video.load(inputVideo);
 
 	// Set the dimensions for NDI sender output
-	senderWidth  = 1920;
-	senderHeight = 1080;
+	// Resolution affects performance
+	// Use 640x360 for low bandwidth WIFI 
+	senderWidth  = 1280;
+	senderHeight = 720;
 
 	// Allocate an RGBA fbo for texture draw
 	m_fbo.allocate(senderWidth, senderHeight, GL_RGBA);
@@ -139,9 +151,10 @@ void ofApp::draw(){
 	
 		// Set the new audio data to the sender audio frame
 		ndiSender.SetAudioData(frames);
-		
+
 	}
 
+	
 	// Video texture format is RGB
 	// Draw to an fbo allocated with alpha
 	m_fbo.begin();
@@ -168,6 +181,7 @@ void ofApp::DrawAudio()
 	if (!ndiSender.GetAudio() || !ndiSender.GetAudioData())
 		return;
 
+
 	// Default planar nSamples spaced over the window width
 	float spacing = (float)ofGetWidth()/(float)nSamples;
 	int yPos = ofGetHeight()/2;
@@ -179,6 +193,9 @@ void ofApp::DrawAudio()
 	float lasty = ypos;
 	float xpos = 0.0f;
 	float lastx = xpos;
+
+	// Yellow lines
+	ofSetColor(255, 255, 0, 255);
 	ofSetLineWidth(2);
 
 	//

@@ -18,11 +18,11 @@ class ofApp : public ofBaseApp{
 		std::string senderName;        // Sender name
 		unsigned int senderWidth = 0;  // Width of the sender output
 		unsigned int senderHeight = 0; // Height of the sender output
+		ofFbo m_fbo;                   // Fbo used for sending
 		float videoFps = 30.0f;        // Video frame rate
 
 		// Graphics
 		ofImage textureImage;          // Texture image for the 3D cube graphics
-		ofFbo m_fbo;                   // Fbo used for sending
 		float rotX = 0.0f;
 		float rotY = 0.0f;             // Cube rotation increment
 		void DrawGraphics();           // Rotating cube draw
@@ -35,13 +35,15 @@ class ofApp : public ofBaseApp{
 		int sampleRate = 0;            // Decoder sample rate
 
 		ofSoundStream soundStream;     // To get sound to speakers
-		vector<float> audioBuffer;     // Buffer for the audio data
-
-		// Audio waveform
-		void DrawAudio();
 		std::mutex audioMutex;
+		int bufferSize = 0;            // Buffer size
+
+		// Draw audio waveform
+		void DrawAudio();
+		bool bAudioReceived = false;
 		vector<float> lAudio;
 		vector<float> rAudio;
+		// Copies for mutex use
 		vector<float> lCopy;
 		vector<float> rCopy;
 

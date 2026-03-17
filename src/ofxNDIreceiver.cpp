@@ -495,7 +495,7 @@ float ofxNDIreceiver::GetSenderFps()
 // Return the received frame type.
 // Note that "allow_video_fields" is currently set false when
 // the receiver is created, so all video received will be progressive
-NDIlib_frame_type_e ofxNDIreceiver::GetFrameType()
+ofxNDIframeinfoflags ofxNDIreceiver::GetFrameType()
 {
 	return NDIreceiver.GetFrameType();
 }
@@ -519,17 +519,57 @@ std::string ofxNDIreceiver::GetMetadataString()
 	return NDIreceiver.GetMetadataString();
 }
 
+// Add a "connection" metadata string sent each time a sender connects
+bool ofxNDIreceiver::AddConnectionMetadataString(std::string message)
+{
+	return NDIreceiver.AddConnectionMetadataString(message);
+}
+
+// Clears "connection" metadata
+bool ofxNDIreceiver::ClearConnectionMetadataStrings()
+{
+	return NDIreceiver.ClearConnectionMetadataStrings();
+}
+
+
+// Set to receive Medadata
+void ofxNDIreceiver::SetEnableMetadata(bool bEnableMetadata)
+{
+	return NDIreceiver.SetEnableMetadata(bEnableMetadata);
+}
+
+// Get if Medadata is enabled
+bool ofxNDIreceiver::GetEnableMetadata() const
+{
+	return NDIreceiver.GetEnableMetadata();
+}
+
 // Return the current video frame timestamp
+// UTC time since the Unix Epoch (1/1/1970 00:00) with 100 ns precision.
 int64_t ofxNDIreceiver::GetVideoTimestamp()
 {
 	return NDIreceiver.GetVideoTimestamp();
 }
 
 // Return the current video frame timecode
-// UTC time since the Unix Epoch (1/1/1970 00:00) with 100 ns precision.
+// (Application-specific format, unix epoch by default)
 int64_t ofxNDIreceiver::GetVideoTimecode()
 {
 	return NDIreceiver.GetVideoTimecode();
+}
+
+// Return the current audio frame timestamp
+// UTC time since the Unix Epoch (1/1/1970 00:00) with 100 ns precision.
+int64_t ofxNDIreceiver::GetAudioTimestamp()
+{
+	return NDIreceiver.GetAudioTimestamp();
+}
+
+// Return the current audio frame timecode
+// (Application-specific format, unix epoch by default)
+int64_t ofxNDIreceiver::GetAudioTimecode()
+{
+	return NDIreceiver.GetAudioTimecode();
 }
 
 // Set preferred video format
@@ -628,6 +668,18 @@ std::string ofxNDIreceiver::GetNDIversion()
 int ofxNDIreceiver::GetFps()
 {
 	return NDIreceiver.GetFps();
+}
+
+// Get queue stats (audio, metadata, image)
+NDIlib_recv_queue_t ofxNDIreceiver::GetQueueLengths()
+{
+	return NDIreceiver.GetQueueLengths();
+}
+
+// Fetch bandwidth / performance
+ofxNDIreceive::ofxNDIPerformanceMetrics ofxNDIreceiver::GetPerformanceMetrics()
+{
+	return NDIreceiver.GetPerformanceMetrics();
 }
 
 //

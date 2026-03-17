@@ -121,6 +121,9 @@ public:
 	bool SendImage(const unsigned char *image, unsigned int width, unsigned int height,
 		bool bSwapRB = false, bool bInvert = false);
 
+	// Manually set a video timecode (before sending the frame!)
+	void SetVideoTimecode(int64_t timecode = NDIlib_send_timecode_synthesize);
+
 	// Set output format
 	void SetFormat(NDIlib_FourCC_video_type_e format);
 
@@ -252,8 +255,19 @@ public:
 	// - datastring | XML message format string NULL terminated
 	void SetMetadataString(std::string datastring);
 
+	// Connection metadata, sent each time a receiver connects
+	// By Default: Populated with an ofxNDI <ndi_product> tag.
+	// Add yours or use ClearConnectionMetadataStrings() after CreateSender().
+	bool AddConnectionMetadataString(std::string message);
+	bool ClearConnectionMetadataStrings();
+
+	std::string ReceiveMetadataString();
+
 	// Get the current NDI SDK version
 	std::string GetNDIversion();
+
+	// Num connected clients / receivers
+	std::size_t GetNumClients();
 
 	// Public for external use
 	ofxNDIsend NDIsender; // Basic sender functions

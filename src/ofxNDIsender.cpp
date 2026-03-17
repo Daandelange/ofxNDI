@@ -391,6 +391,11 @@ bool ofxNDIsender::SendImage(const unsigned char * pixels,
 
 }
 
+// Manually set a video timecode
+void ofxNDIsender::SetVideoTimecode(int64_t timecode){
+	NDIsender.SetVideoTimecode(timecode);
+}
+
 // Set output format
 void ofxNDIsender::SetFormat(NDIlib_FourCC_video_type_e format)
 {
@@ -654,10 +659,31 @@ void ofxNDIsender::SetMetadata(bool bMetadata)
 	NDIsender.SetMetadata(bMetadata);
 }
 
-// Set metadata
+// Set metadata to send
 void ofxNDIsender::SetMetadataString(std::string datastring)
 {
 	NDIsender.SetMetadataString(datastring);
+}
+
+// Connection metadata, sent each time a receiver connects
+bool ofxNDIsender::AddConnectionMetadataString(std::string message)
+{
+	return NDIsender.AddConnectionMetadataString(message);
+}
+
+bool ofxNDIsender::ClearConnectionMetadataStrings()
+{
+	return NDIsender.ClearConnectionMetadataStrings();
+}
+
+// Returns the received metadata string (if any)
+std::string ofxNDIsender::ReceiveMetadataString(){
+	return NDIsender.ReceiveMetadataString();
+}
+
+// Num connected clients / receivers
+std::size_t ofxNDIsender::GetNumClients(){
+	return NDIsender.GetNumClients();
 }
 
 // Get NDI dll version number

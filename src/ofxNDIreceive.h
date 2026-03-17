@@ -99,6 +99,20 @@ typedef struct {
 typedef unsigned int DWORD;
 #endif
 
+typedef int ofxNDIframeinfoflags;
+enum ofxNDIframeinfoflags_ {
+	ofxNDIframeinfoflags_none			= 0,
+	ofxNDIframeinfoflags_video			= 1 << 2,
+	ofxNDIframeinfoflags_audio			= 1 << 3,
+	ofxNDIframeinfoflags_metadata		= 1 << 4,
+	ofxNDIframeinfoflags_statuschange	= 1 << 5,
+	ofxNDIframeinfoflags_sourcechange	= 1 << 6,
+	ofxNDIframeinfoflags_error	        = 1 << 7,
+	//ofxNDIframeinfoflags_nodata			= 1 << 0,
+};
+ofxNDIframeinfoflags_ ToFrameInfoFlag(NDIlib_frame_type_e frametype);
+
+std::string FrameInfoToString(const ofxNDIframeinfoflags& fif);
 
 class ofxNDIreceive {
 
@@ -235,20 +249,38 @@ public:
 	void SetFormat(NDIlib_recv_color_format_e format);
 
 	// Received frame type
-	NDIlib_frame_type_e GetFrameType();
+	ofxNDIframeinfoflags GetFrameType();
 
 	// Is the current frame MetaData ?
 	// Use when ReceiveImage fails
 	bool IsMetadata();
 
-	// Return the current MetaData string
+	// Returns the current frame MetaData string
 	std::string GetMetadataString();
+
+	// Set to receive Medadata
+	void SetEnableMetadata(bool bEnableMetadata);
+
+	// Get if Medadata is enabled
+	bool GetEnableMetadata() const;
+
+	// Connection metadata, sent each time a sender connects
+	// By Default: Populated with an ofxNDI <ndi_product> tag.
+	// Add yours or use ClearConnectionMetadataStrings() after CreateReceiver().
+	bool AddConnectionMetadataString(std::string message);
+	bool ClearConnectionMetadataStrings();
 
 	// Return the current video frame timestamp
 	int64_t GetVideoTimestamp();
 
 	// Return the current video frame timecode
 	int64_t GetVideoTimecode();
+
+	// Return the current audio frame timestamp
+	int64_t GetAudioTimestamp();
+
+	// Return the current audio frame timecode
+	int64_t GetAudioTimecode();
 
 	// Set to receive Audio
 	void SetAudio(bool bAudio);
@@ -287,19 +319,33 @@ public:
 	// Reset starting received frame rate
 	void ResetFps(double fps);
 
+	// Get queue stats (audio, metadata, image)
+	NDIlib_recv_queue_t GetQueueLengths();
+
+	struct ofxNDIPerformanceMetrics {
+		NDIlib_recv_performance_t total;
+		NDIlib_recv_performance_t dropped;
+	};
+	// Fetch bandwidth / performance
+	ofxNDIPerformanceMetrics GetPerformanceMetrics();
+
+	// Public for external use
+	const NDIlib_v4* p_NDILib;
+
 	// ====================================================================
 
 private:
 
 	ofxNDIdynloader libloader;
-	const NDIlib_v4* p_NDILib;
+//	const NDIlib_v4* p_NDILib;
 
 	const NDIlib_source_t* p_sources;
 	uint32_t no_sources;
 	NDIlib_find_instance_t pNDI_find;
 	NDIlib_recv_instance_t pNDI_recv;
 	NDIlib_video_frame_v2_t video_frame;
-	NDIlib_frame_type_e m_FrameType;
+	//NDIlib_frame_type_e m_FrameType;
+	ofxNDIframeinfoflags m_FrameType;
 
 	unsigned int m_Width;
 	unsigned int m_Height;
@@ -329,7 +375,8 @@ private:
 	void UpdateFps();
 
 	// Metadata
-	bool m_bMetadata;
+	bool m_bMetadataFrame;
+	bool m_bMetadataEnabled;
 	std::string m_metadataString; // XML message format string NULL terminated
 
 	// Video timecode, timestamp
@@ -337,13 +384,15 @@ private:
 	int64_t m_VideoTimestamp;
 
 	// Audio frame received
-	bool m_bAudio;
+	bool m_bAudio; // Audio enabled
 	bool m_bAudioFrame;
 	float* m_AudioData;
 	int m_nAudioSampleRate;
 	int m_nAudioSamples;
 	int m_nAudioChannels;
 	int m_AudioDataStride;
+	int64_t m_AudioTimecode;
+	int64_t m_AudioTimestamp;
 
 	// Replacement function for deprecated NDIlib_find_get_sources
 	// If no timeout specified, return the sources that exist right now

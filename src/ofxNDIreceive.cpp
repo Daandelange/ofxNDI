@@ -75,7 +75,7 @@
 			 - Added GetSenderIndex(std::string sendername, int &index)
 	06.08.18 - SetSenderIndex return false for the same sender
 
-	New functions and changes for 3.5 uodate:
+	New functions and changes for 3.5 update:
 
 				bool GetSenderName(char *sendername, int maxsize, int index = -1)
 				bool ReceiveImage(unsigned int &width, unsigned int &height)
@@ -175,6 +175,9 @@
 
 #include "ofxNDIreceive.h"
 #include <math.h>
+#include <array>
+#include <utility> // std::pair
+
 // Linux
 // https://github.com/hugoaboud/ofxNDI
 #if !defined(TARGET_WIN32)
@@ -215,6 +218,48 @@ bool QueryPerformanceCounter(LARGE_INTEGER *performance_count)
 }
 #endif
 
+ofxNDIframeinfoflags_ ToFrameInfoFlag(NDIlib_frame_type_e frametype){
+	switch(frametype){
+		case NDIlib_frame_type_video:
+			return ofxNDIframeinfoflags_video;
+		case NDIlib_frame_type_audio:
+			return ofxNDIframeinfoflags_audio;
+		case NDIlib_frame_type_metadata:
+			return	ofxNDIframeinfoflags_metadata;
+		case NDIlib_frame_type_status_change:
+			return ofxNDIframeinfoflags_statuschange;
+		case NDIlib_frame_type_source_change:
+			return ofxNDIframeinfoflags_sourcechange;
+		case NDIlib_frame_type_error:
+			return ofxNDIframeinfoflags_error;
+		default:
+			return ofxNDIframeinfoflags_none;
+	}
+	return ofxNDIframeinfoflags_none;
+}
+
+std::string FrameInfoToString(const ofxNDIframeinfoflags& fif) {
+    static constexpr auto enumValues = std::array{
+        std::pair{ofxNDIframeinfoflags_none, "none"},
+        std::pair{ofxNDIframeinfoflags_video, "video"},
+        std::pair{ofxNDIframeinfoflags_audio, "audio"},
+        std::pair{ofxNDIframeinfoflags_metadata, "metadata"},
+        std::pair{ofxNDIframeinfoflags_statuschange, "statuschange"},
+        std::pair{ofxNDIframeinfoflags_sourcechange, "sourcechange"},
+        std::pair{ofxNDIframeinfoflags_error, "error"}
+    };
+    std::string ret = "ofxNDIframeinfoflags(";
+    for(const auto& [value, name] : enumValues){
+        ret += name;
+        ret += ":";
+        ret += fif&value?"x":" ";
+        ret += ", ";
+    }
+    // ret += ")";
+    ret[ret.length()-2]=')'; // replace last comma by ')'
+    return ret;
+}
+
 ofxNDIreceive::ofxNDIreceive()
 {
 	p_NDILib = nullptr;
@@ -224,7 +269,7 @@ ofxNDIreceive::ofxNDIreceive()
 	no_sources = 0;
 	bNDIinitialized = false;
 	bReceiverCreated = false;
-	m_FrameType = NDIlib_frame_type_none;
+	m_FrameType = ofxNDIframeinfoflags_none;//NDIlib_frame_type_none;
 	m_nSenders = 0;
 	m_Width = 0;
 	m_Height = 0;
@@ -242,8 +287,14 @@ ofxNDIreceive::ofxNDIreceive()
 	m_nAudioSamples = 0;
 	m_nAudioChannels = 0;
 	m_AudioDataStride = 0;
+	m_AudioTimecode = 0;
+	m_AudioTimestamp = 0;
 	// Intialize global video frame data pointer
 	video_frame.p_data = nullptr;
+
+	// Metadata
+	m_bMetadataEnabled = true; // not to break previous behaviour
+	m_bMetadataFrame = false;
 
 	// Initialize video frame timecode and timestamp
 	m_VideoTimecode = 0LL;
@@ -651,7 +702,7 @@ void ofxNDIreceive::SetFormat(NDIlib_recv_color_format_e format)
 
 
 // Return the received frame type
-NDIlib_frame_type_e ofxNDIreceive::GetFrameType()
+ofxNDIframeinfoflags ofxNDIreceive::GetFrameType()
 {
 	return m_FrameType;
 }
@@ -659,7 +710,7 @@ NDIlib_frame_type_e ofxNDIreceive::GetFrameType()
 // Is the current frame MetaData ?
 bool ofxNDIreceive::IsMetadata()
 {
-	return m_bMetadata;
+	return m_bMetadataFrame;
 }
 
 // Return the current MetaData string
@@ -668,17 +719,67 @@ std::string ofxNDIreceive::GetMetadataString()
 	return m_metadataString;
 }
 
+// Adds "connection" metadata strings, sent each time a sender connects.
+// eg: for providing information about your app.
+bool ofxNDIreceive::AddConnectionMetadataString(std::string message)
+{
+	if (p_NDILib && pNDI_recv && message.length()>0){
+		NDIlib_metadata_frame_t NDI_metadata;
+		NDI_metadata.p_data = message.data();
+		p_NDILib->recv_add_connection_metadata(pNDI_recv, &NDI_metadata);
+		return true;
+	}
+	return false;
+}
+
+// Clears "connection" metadata strings.
+bool ofxNDIreceive::ClearConnectionMetadataStrings()
+{
+	if (p_NDILib && pNDI_recv){
+		p_NDILib->recv_clear_connection_metadata(pNDI_recv);
+		return true;
+	}
+	return false;
+}
+
+// Set to receive Medadata
+void ofxNDIreceive::SetEnableMetadata(bool bEnableMetadata)
+{
+	m_bMetadataEnabled = bEnableMetadata;
+}
+
+// Get if Medadata is enabled
+bool ofxNDIreceive::GetEnableMetadata() const
+{
+	return m_bMetadataEnabled;
+}
+
 // Return the current video frame timestamp
+// UTC time since the Unix Epoch (1/1/1970 00:00) with 100 ns precision.
 int64_t ofxNDIreceive::GetVideoTimestamp()
 {
 	return m_VideoTimestamp;
 }
 
 // Return the current video frame timecode
-// UTC time since the Unix Epoch (1/1/1970 00:00) with 100 ns precision.
+// User-defined format (program-specific)
 int64_t ofxNDIreceive::GetVideoTimecode()
 {
 	return m_VideoTimecode;
+}
+
+// Return the current audio frame timestamp
+// UTC time since the Unix Epoch (1/1/1970 00:00) with 100 ns precision.
+int64_t ofxNDIreceive::GetAudioTimestamp()
+{
+	return m_AudioTimestamp;
+}
+
+// Return the current audio frame timecode
+// User-defined format (program-specific)
+int64_t ofxNDIreceive::GetAudioTimecode()
+{
+	return m_AudioTimecode;
 }
 
 // Set to receive Audio
@@ -912,6 +1013,17 @@ bool ofxNDIreceive::CreateReceiver(NDIlib_recv_color_format_e colorFormat , int 
 			// Reset the current index value
 			m_senderIndex = index;
 
+			// Register product connection metadata
+			std::string type = "<ndi_product long_name=\"ofxNDI receiver\" ";
+			type += "             short_name=\"ofxNDI receiver\" ";
+			type += "             manufacturer=\"spout@zeal.co\" ";
+			type += "             version=\"";
+			type += ofxNDIutils::GetVersion(); type += "\" ";
+			type += "             session=\"default\" ";
+			type += "             model_name=\"none\" ";
+			type += "             serial=\"none\"/>";
+			AddConnectionMetadataString(type);
+
 			// Reset the timestamp, timecode and frame time
 			m_VideoTimestamp = 0LL;
 			m_VideoTimecode = 0LL;
@@ -978,11 +1090,13 @@ bool ofxNDIreceive::ReceiveImage(unsigned char *pixels,
 	unsigned int &width, unsigned int &height, bool bInvert)
 {
 	NDIlib_frame_type_e NDI_frame_type;
+	NDIlib_frame_type_e NDI_frame_type_audio=NDIlib_frame_type_none;
+	NDIlib_frame_type_e NDI_frame_type_metadata=NDIlib_frame_type_none;
 	NDIlib_metadata_frame_t metadata_frame;
 	// NDIlib_audio_frame_v2_t audio_frame;
 	// 4.5
 	NDIlib_audio_frame_v3_t audio_frame;
-	m_FrameType = NDIlib_frame_type_none;
+	m_FrameType = ofxNDIframeinfoflags_none;// NDIlib_frame_type_none;
 	bool bRet = false;
 
 	if (!bNDIinitialized) return false;
@@ -997,176 +1111,186 @@ bool ofxNDIreceive::ReceiveImage(unsigned char *pixels,
 		// NDI_frame_type = p_NDILib->recv_capture_v2(pNDI_recv, &video_frame, &audio_frame, &metadata_frame, 0);
 		// Vers 4.5
 		// Return immediately  if no frame is available for lowest-latency.
+#if 0 // old way
 		NDI_frame_type = p_NDILib->recv_capture_v3(pNDI_recv, &video_frame, &audio_frame, &metadata_frame, 0);
+#else
+		NDI_frame_type              = p_NDILib->recv_capture_v3(pNDI_recv, &video_frame, NULL        , NULL           , 0);
+		if(m_bAudio)
+			NDI_frame_type_audio    = p_NDILib->recv_capture_v3(pNDI_recv, NULL        , &audio_frame, NULL           , 0);
+		if(m_bMetadataEnabled)
+			NDI_frame_type_metadata = p_NDILib->recv_capture_v3(pNDI_recv, NULL        , NULL        , &metadata_frame, 0);
+#endif
 
 		// Set frame type for external access
-		m_FrameType = NDI_frame_type;
+		m_FrameType |= ToFrameInfoFlag(NDI_frame_type);
+		if(m_bAudio)
+			m_FrameType |= ToFrameInfoFlag(NDI_frame_type_audio);
+		if(m_bMetadataEnabled)
+			m_FrameType |= ToFrameInfoFlag(NDI_frame_type_metadata);
+
+		// Set frame type for external access
+		ofxNDIframeinfoflags frame_flags;
 
 		// Clear existing metadata if any
 		if (!m_metadataString.empty())
 			m_metadataString.clear();
-		m_bMetadata = false;
+		m_bMetadataFrame = false;
 
 		// Default is a video frame
 		// Retain any audio data that has been received
 		m_bAudioFrame = false;
 
-		switch (NDI_frame_type) {
-
+		if(m_FrameType == ofxNDIframeinfoflags_none) {
 			// No data received or the connection lost
-			case NDIlib_frame_type_none:
-				bRet = false;
-				break;
-
-			case NDIlib_frame_type_error:
-				bRet = false;
-				break;
-
+			bRet = false;
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_error) {
+			// Error !
+			bRet = false;
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_statuschange) {
 			// The settings on this input have changed
-			case NDIlib_frame_type_status_change:
-				bRet = false;
-				break;
+			bRet = false;
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_metadata) {
+			if (metadata_frame.p_data) {
+				m_bMetadataFrame = true;
+				m_metadataString = metadata_frame.p_data;
+				// ReceiveImage will return false
+				// Use IsMetadata() to determine whether metadata has been received
+				// Free the captured buffer
+				p_NDILib->recv_free_metadata(pNDI_recv, &metadata_frame);
+			}
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_audio) {
+			if (audio_frame.p_data) {
+				if (m_bAudio) {
 
-			case NDIlib_frame_type_metadata:
-				if (metadata_frame.p_data) {
-					m_bMetadata = true;
-					m_metadataString = metadata_frame.p_data;
-					// ReceiveImage will return false
-					// Use IsMetadata() to determine whether metadata has been received
-					// Free the captured buffer
-					p_NDILib->recv_free_metadata(pNDI_recv, &metadata_frame);
-				}
-				break;
-
-			case NDIlib_frame_type_audio:
-				if (audio_frame.p_data) {
-					if (m_bAudio) {
-
-						// Copy the audio data to a local audio buffer
-						// Allocate only for sample size change
-						if (m_nAudioSamples != audio_frame.no_samples
-							|| m_nAudioSampleRate != audio_frame.sample_rate
-							|| m_nAudioChannels != audio_frame.no_channels) {
-							if (m_AudioData) {
-								free((void*)m_AudioData);
-								m_AudioDataStride = 0;
-							}
-							m_AudioData = (float *)malloc((size_t)audio_frame.no_samples * (size_t)audio_frame.no_channels * sizeof(float));
-							m_AudioDataStride = audio_frame.channel_stride_in_bytes;
+					// Copy the audio data to a local audio buffer
+					// Allocate only for sample size change
+					if (m_nAudioSamples != audio_frame.no_samples
+						|| m_nAudioSampleRate != audio_frame.sample_rate
+						|| m_nAudioChannels != audio_frame.no_channels) {
+						if (m_AudioData) {
+							free((void*)m_AudioData);
+							m_AudioDataStride = 0;
 						}
-						
-						/*
-						printf("Audio frame\n");
-						printf("Number of channels      = %d\n", audio_frame.no_channels);
-						printf("Number of samples       = %d\n", audio_frame.no_samples);
-						printf("Sample rate             = %d\n", audio_frame.sample_rate);
-						printf("FourCC                  = %d\n", audio_frame.FourCC);
-						printf("Data size in bytes      = %d\n", audio_frame.data_size_in_bytes);
-						printf("Channel stride in bytes = %d\n", audio_frame.channel_stride_in_bytes);
-						*/
-
-						// Number of channels
-						m_nAudioChannels   = audio_frame.no_channels;
-						// Number of samples per channel
-						m_nAudioSamples    = audio_frame.no_samples/audio_frame.no_channels;
-						// Sample rate in hz
-						m_nAudioSampleRate = audio_frame.sample_rate;
-						if (m_AudioData)
-							memcpy((void *)m_AudioData, (void *)audio_frame.p_data, ((size_t)m_nAudioSamples * (size_t)audio_frame.no_channels * sizeof(float)));
-						m_bAudioFrame = true;
-
-						// ReceiveImage will return false
-						// Use IsAudioFrame() to determine whether audio has been received
-						// and GetAudioData to retrieve the sample buffer
+						m_AudioData = (float *)malloc((size_t)audio_frame.no_samples * (size_t)audio_frame.no_channels * sizeof(float));
+						m_AudioDataStride = audio_frame.channel_stride_in_bytes;
 					}
-					// Vers 4.5
-					p_NDILib->recv_free_audio_v3(pNDI_recv, &audio_frame);
+
+					/*
+					printf("Audio frame\n");
+					printf("Number of channels      = %d\n", audio_frame.no_channels);
+					printf("Number of samples       = %d\n", audio_frame.no_samples);
+					printf("Sample rate             = %d\n", audio_frame.sample_rate);
+					printf("FourCC                  = %d\n", audio_frame.FourCC);
+					printf("Data size in bytes      = %d\n", audio_frame.data_size_in_bytes);
+					printf("Channel stride in bytes = %d\n", audio_frame.channel_stride_in_bytes);
+					//std::cout << std::endl;
+					*/
+
+
+					// Number of channels
+					m_nAudioChannels   = audio_frame.no_channels;
+					// Number of samples per channel
+					m_nAudioSamples    = audio_frame.no_samples/audio_frame.no_channels;
+					// Sample rate in hz
+					m_nAudioSampleRate = audio_frame.sample_rate;
+					// Time data
+					m_AudioTimecode = audio_frame.timecode;
+					m_AudioTimestamp = audio_frame.timestamp;
+					if (m_AudioData)
+						memcpy((void *)m_AudioData, (void *)audio_frame.p_data, ((size_t)m_nAudioSamples * (size_t)audio_frame.no_channels * sizeof(float)));
+					m_bAudioFrame = true;
+
+					// ReceiveImage will return false
+					// Use IsAudioFrame() to determine whether audio has been received
+					// and GetAudioData to retrieve the sample buffer
 				}
-				break;
+				// Vers 4.5
+				p_NDILib->recv_free_audio_v3(pNDI_recv, &audio_frame);
+			}
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_video) {
+			if (video_frame.p_data) {
 
-			case NDIlib_frame_type_video:
+				// The caller can check whether a frame has been received
+				bReceiverConnected = true;
 
-				if (video_frame.p_data) {
+				if (m_Width != (unsigned int)video_frame.xres || m_Height != (unsigned int)video_frame.yres) {
+					m_Width = (unsigned int)video_frame.xres; // current width
+					m_Height = (unsigned int)video_frame.yres; // current height
+					// Update the caller dimensions
+					width = m_Width;
+					height = m_Height;
+					// Return received OK for the app to handle changed dimensions
+					bRet = true;
+				}
 
-					// The caller can check whether a frame has been received
-					bReceiverConnected = true;
+				// Otherwise sizes are current - copy the received frame data to the local buffer
+				else if (video_frame.p_data && (uint8_t*)pixels) {
 
-					if (m_Width != (unsigned int)video_frame.xres || m_Height != (unsigned int)video_frame.yres) {
-						m_Width = (unsigned int)video_frame.xres; // current width
-						m_Height = (unsigned int)video_frame.yres; // current height
-						// Update the caller dimensions
-						width = m_Width;
-						height = m_Height;
-						// Return received OK for the app to handle changed dimensions
-						bRet = true;
-					}
+					// Video frame type
+					switch (video_frame.FourCC) {
+						// Note : If the receiver is set up to prefer BGRA or RGBA format,
+						// the slower YUV422_to_RGBA conversion function here is not used.
+						case NDIlib_FourCC_type_UYVY: // YCbCr color space
+						// Alpha component of NDIlib_FourCC_type_UYVA not supported
+						case NDIlib_FourCC_type_UYVA: // With alpha (not used)
+							// CPU conversion
+							// 5.5 msec at 1920x1080
+							ofxNDIutils::YUV422_to_RGBA((const unsigned char *)video_frame.p_data, pixels, m_Width, m_Height, (unsigned int)video_frame.line_stride_in_bytes);
+							break;
+						case NDIlib_FourCC_type_RGBA: // RGBA
+						case NDIlib_FourCC_type_RGBX: // RGBX
+							// Do not swap red/green
+							ofxNDIutils::CopyImage((const unsigned char *)video_frame.p_data, pixels, m_Width, m_Height, (unsigned int)video_frame.line_stride_in_bytes, false, bInvert);
+							break;
+						case NDIlib_FourCC_type_BGRA: // BGRA
+						case NDIlib_FourCC_type_BGRX: // BGRX
+							// Swap red/green : BGRA > RGBA
+							ofxNDIutils::CopyImage((const unsigned char *)video_frame.p_data, pixels, m_Width, m_Height, (unsigned int)video_frame.line_stride_in_bytes, true, bInvert);
+							break;
 
-					// Otherwise sizes are current - copy the received frame data to the local buffer
-					else if (video_frame.p_data && (uint8_t*)pixels) {
-						
-						// Video frame type
-						switch (video_frame.FourCC) {
-							// Note : If the receiver is set up to prefer BGRA or RGBA format,
-							// the slower YUV422_to_RGBA conversion function here is not used.
-							case NDIlib_FourCC_type_UYVY: // YCbCr color space
-							// Alpha component of NDIlib_FourCC_type_UYVA not supported
-							case NDIlib_FourCC_type_UYVA: // With alpha (not used)
-								// CPU conversion
-								// 5.5 msec at 1920x1080
-								ofxNDIutils::YUV422_to_RGBA((const unsigned char *)video_frame.p_data, pixels, m_Width, m_Height, (unsigned int)video_frame.line_stride_in_bytes);
-								break;
-							case NDIlib_FourCC_type_RGBA: // RGBA
-							case NDIlib_FourCC_type_RGBX: // RGBX
-								// Do not swap red/green
-								ofxNDIutils::CopyImage((const unsigned char *)video_frame.p_data, pixels, m_Width, m_Height, (unsigned int)video_frame.line_stride_in_bytes, false, bInvert);
-								break;
-							case NDIlib_FourCC_type_BGRA: // BGRA
-							case NDIlib_FourCC_type_BGRX: // BGRX
-								// Swap red/green : BGRA > RGBA
-								ofxNDIutils::CopyImage((const unsigned char *)video_frame.p_data, pixels, m_Width, m_Height, (unsigned int)video_frame.line_stride_in_bytes, true, bInvert);
-								break;
-							
-							// Unsupported formats
-							case NDIlib_FourCC_video_type_P216:
-							case NDIlib_FourCC_video_type_PA16:
-							case NDIlib_FourCC_type_NV12:
-							case NDIlib_FourCC_type_I420:
-							case NDIlib_FourCC_type_YV12:
-							case NDIlib_frame_type_max:
-							default:
-								break;
+						// Unsupported formats
+						case NDIlib_FourCC_video_type_P216:
+						case NDIlib_FourCC_video_type_PA16:
+						case NDIlib_FourCC_type_NV12:
+						case NDIlib_FourCC_type_I420:
+						case NDIlib_FourCC_type_YV12:
+						case NDIlib_FourCC_video_type_max:
+						default:
+							break;
 
-						} // end switch received format
+					} // end switch received format
 
-						// Get the current video frame timecode
-						// UTC time since the Unix Epoch (1/1/1970 00:00) with 100 ns precision.
-						m_VideoTimecode = video_frame.timecode;
+					// Get the current video frame timecode
+					// UTC time since the Unix Epoch (1/1/1970 00:00) with 100 ns precision.
+					m_VideoTimecode = video_frame.timecode;
 
-						// Get the current video frame timestamp
-						m_VideoTimestamp = video_frame.timestamp;
+					// Get the current video frame timestamp
+					m_VideoTimestamp = video_frame.timestamp;
 
-						// Buffers captured must be freed
-						p_NDILib->recv_free_video_v2(pNDI_recv, &video_frame);
+					// Buffers captured must be freed
+					p_NDILib->recv_free_video_v2(pNDI_recv, &video_frame);
 
-						// The caller always checks the received dimensions
-						width = m_Width;
-						height = m_Height;
+					// The caller always checks the received dimensions
+					width = m_Width;
+					height = m_Height;
 
-						// Update received frame counter
-						UpdateFps();
+					// Update received frame counter
+					UpdateFps();
 
-						// return true for successful video frame received
-						bRet = true;
+					// return true for successful video frame received
+					bRet = true;
 
-					} // endif video frame copy
-				} // end video frame type
-				break;
+				} // endif video frame copy
+			} // end video frame type
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_sourcechange) {
 
-			case NDIlib_frame_type_max:	// Not used
-			default :
-				break;
-
-		} // end switch on received frame type
+		}
 
 	} // endif pNDI_recv
 	else {
@@ -1186,12 +1310,15 @@ bool ofxNDIreceive::ReceiveImage(unsigned char *pixels,
 bool ofxNDIreceive::ReceiveImage(unsigned int &width, unsigned int &height)
 {
 	NDIlib_frame_type_e NDI_frame_type;
+	NDIlib_frame_type_e NDI_frame_type_audio=NDIlib_frame_type_none;
+	NDIlib_frame_type_e NDI_frame_type_metadata=NDIlib_frame_type_none;
 	NDIlib_metadata_frame_t metadata_frame;
 	// NDIlib_audio_frame_v2_t audio_frame;
 	// Vers 4.5
 	NDIlib_audio_frame_v3_t audio_frame{};
-	m_FrameType = NDIlib_frame_type_none;
+	m_FrameType = ofxNDIframeinfoflags_none;
 
+	ofxNDIframeinfoflags frame_flags;
 	// Default receive failed or audio frame
 	bool bRet = false;
 
@@ -1209,137 +1336,147 @@ bool ofxNDIreceive::ReceiveImage(unsigned int &width, unsigned int &height)
 	if (pNDI_recv) {
 
 		// Vers 4.5
-		NDI_frame_type = p_NDILib->recv_capture_v3(pNDI_recv, &video_frame, &audio_frame, &metadata_frame, 0);
+#if 0
+		NDI_frame_type              = p_NDILib->recv_capture_v3(pNDI_recv, &video_frame, &audio_frame, &metadata_frame, 0);
+#else
+		NDI_frame_type              = p_NDILib->recv_capture_v3(pNDI_recv, &video_frame, NULL        , NULL           , 0);
+		if(m_bAudio)
+			NDI_frame_type_audio    = p_NDILib->recv_capture_v3(pNDI_recv, NULL        , &audio_frame, NULL           , 0);
+		if(m_bMetadataEnabled)
+			NDI_frame_type_metadata = p_NDILib->recv_capture_v3(pNDI_recv, NULL        , NULL        , &metadata_frame, 0);
+#endif
 
 		// Set frame type for external access
-		m_FrameType = NDI_frame_type;
+		m_FrameType |= ToFrameInfoFlag(NDI_frame_type);
+		if(m_bAudio)
+			m_FrameType |= ToFrameInfoFlag(NDI_frame_type_audio);
+		if(m_bMetadataEnabled)
+			m_FrameType |= ToFrameInfoFlag(NDI_frame_type_metadata);
 
 		// Clear existing metadata if any
 		if (!m_metadataString.empty())
 			m_metadataString.clear();
-		m_bMetadata = false;
+		m_bMetadataFrame = false;
 
 		// Default is a video frame
 		// Retain any audio data that has been received
 		m_bAudioFrame = false;
-
-		switch (NDI_frame_type) {
-
+		if(m_FrameType == ofxNDIframeinfoflags_none) {
 			// No data received or the connection lost
-			case NDIlib_frame_type_none:
-				break;
-
-			case NDIlib_frame_type_error:
-				break;
-
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_error) {
+			// Error !
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_statuschange) {
 			// The settings on this input have changed
-			case NDIlib_frame_type_status_change:
-				break;
-
-			case NDIlib_frame_type_source_change:
-				break;
-
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_metadata) {
 			// Metadata
-			case NDIlib_frame_type_metadata :
-				if (metadata_frame.p_data) {
-					m_bMetadata = true;
-					// Save the metadata string
-					m_metadataString = metadata_frame.p_data;
-					// ReceiveImage will return false
-					// Use IsMetadata() to determine whether metadata has been received
-					// Free the captured buffer
-					p_NDILib->recv_free_metadata(pNDI_recv, &metadata_frame);
-				}
-				break;
+			if (metadata_frame.p_data) {
+				m_bMetadataFrame = true;
+				// Save the metadata string
+				m_metadataString = metadata_frame.p_data;
+				// ReceiveImage will return false
+				// Use IsMetadata() to determine whether metadata has been received
+				// Free the captured buffer
+				p_NDILib->recv_free_metadata(pNDI_recv, &metadata_frame);
+			}
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_audio) {
+			// Audio
+			if (audio_frame.p_data) {
+				if (m_bAudio) {
 
-			case NDIlib_frame_type_audio :
-
-				if (audio_frame.p_data) {
-					if (m_bAudio) {
-
-						// Copy the audio data to a local audio buffer
-						// Re-allocate only for sample size change
-						if (m_nAudioSamples       != audio_frame.no_samples
-							|| m_nAudioSampleRate != audio_frame.sample_rate
-							|| m_nAudioChannels   != audio_frame.no_channels) {
-							if (m_AudioData)
-								free((void *)m_AudioData);
-							m_AudioData = nullptr;
-						}
-
-						if (!m_AudioData) {
-							m_AudioData = (float *)malloc((size_t)audio_frame.no_samples * (size_t)audio_frame.no_channels * sizeof(float));
-						}
-
-						m_nAudioChannels   = audio_frame.no_channels;
-						m_nAudioSamples    = audio_frame.no_samples;
-						m_nAudioSampleRate = audio_frame.sample_rate;
-						if (m_AudioData) {
-							memcpy((void*)m_AudioData, (void*)audio_frame.p_data, ((size_t)m_nAudioSamples * (size_t)audio_frame.no_channels * sizeof(float)));
-							m_AudioDataStride = audio_frame.channel_stride_in_bytes;
-						}
-						else {
-							m_AudioDataStride = 0;
-						}
-						
-						m_bAudioFrame = true;
-						
-						// ReceiveImage will return false (no image received)
-						// Use IsAudioFrame() to determine whether audio has been received
-						// and GetAudioData to retrieve the sample buffer
-
-					}
-					// Vers 4.5
-					p_NDILib->recv_free_audio_v3(pNDI_recv, &audio_frame);
-				}
-				break;
-
-			case NDIlib_frame_type_video :
-				if (video_frame.p_data) {
-
-					// The caller can check whether a frame has been received
-					bReceiverConnected = true;
-
-					if (m_Width != (unsigned int)video_frame.xres || m_Height != (unsigned int)video_frame.yres) {
-						m_Width  = (unsigned int)video_frame.xres;
-						m_Height = (unsigned int)video_frame.yres;
+					// Copy the audio data to a local audio buffer
+					// Re-allocate only for sample size change
+					if (m_nAudioSamples       != audio_frame.no_samples
+						|| m_nAudioSampleRate != audio_frame.sample_rate
+						|| m_nAudioChannels   != audio_frame.no_channels) {
+						if (m_AudioData)
+							free((void *)m_AudioData);
+						m_AudioData = nullptr;
 					}
 
-					// Retain the video frame pointer for external access.
-					// Buffers captured must then be freed using FreeVideoData.
-					// Update the caller dimensions and return received OK
-					// for the app to handle changed dimensions
-					width  = m_Width;
-					height = m_Height;
+					if (!m_AudioData) {
+						m_AudioData = (float *)malloc((size_t)audio_frame.no_samples * (size_t)audio_frame.no_channels * sizeof(float));
+					}
 
-					// Get the current video frame timecode
-					// UTC time since the Unix Epoch (1/1/1970 00:00) with 100 ns precision.
-					m_VideoTimecode = video_frame.timecode;
+					m_nAudioChannels   = audio_frame.no_channels;
+					m_nAudioSamples    = audio_frame.no_samples;
+					m_nAudioSampleRate = audio_frame.sample_rate;
+					m_AudioTimecode = audio_frame.timecode;
+					m_AudioTimestamp = audio_frame.timestamp;
+					if (m_AudioData) {
+						memcpy((void*)m_AudioData, (void*)audio_frame.p_data, ((size_t)m_nAudioSamples * (size_t)audio_frame.no_channels * sizeof(float)));
+						m_AudioDataStride = audio_frame.channel_stride_in_bytes;
+					}
+					else {
+						m_AudioDataStride = 0;
+					}
 
-					// Get the current video frame timestamp
-					m_VideoTimestamp = video_frame.timestamp;
+					m_bAudioFrame = true;
 
-					// Update received frame counter
-					UpdateFps();
+					/*
+					printf("Audio frame\n");
+					printf("Number of channels      = %d\n", audio_frame.no_channels);
+					printf("Number of samples       = %d\n", audio_frame.no_samples);
+					printf("Sample rate             = %d\n", audio_frame.sample_rate);
+					printf("FourCC                  = %d\n", audio_frame.FourCC);
+					printf("Data size in bytes      = %d\n", audio_frame.data_size_in_bytes);
+					printf("Channel stride in bytes = %d\n", audio_frame.channel_stride_in_bytes);
+					//std::cout << std::endl;
+					*/
 
-					// Only return true for video data
-					bRet = true;
+					// ReceiveImage will return false (no image received)
+					// Use IsAudioFrame() to determine whether audio has been received
+					// and GetAudioData to retrieve the sample buffer
 
 				}
-				else {
-					// No video data
-					bReceiverConnected = false;
+				// Vers 4.5
+				p_NDILib->recv_free_audio_v3(pNDI_recv, &audio_frame);
+			}
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_video) {
+			if (video_frame.p_data) {
+
+				// The caller can check whether a frame has been received
+				bReceiverConnected = true;
+
+				if (m_Width != (unsigned int)video_frame.xres || m_Height != (unsigned int)video_frame.yres) {
+					m_Width  = (unsigned int)video_frame.xres;
+					m_Height = (unsigned int)video_frame.yres;
 				}
-				break; // endif NDIlib_frame_type_video
 
-			case NDIlib_frame_type_max:
-				// Not used
-				break;
+				// Retain the video frame pointer for external access.
+				// Buffers captured must then be freed using FreeVideoData.
+				// Update the caller dimensions and return received OK
+				// for the app to handle changed dimensions
+				width  = m_Width;
+				height = m_Height;
 
-			default:
-				break;
+				// Get the current video frame timecode
+				// UTC time since the Unix Epoch (1/1/1970 00:00) with 100 ns precision.
+				m_VideoTimecode = video_frame.timecode;
 
-		} // end switch frame type
+				// Get the current video frame timestamp
+				m_VideoTimestamp = video_frame.timestamp;
+
+				// Update received frame counter
+				UpdateFps();
+
+				// Only return true for video data
+				bRet = true;
+
+			}
+			else {
+				// No video data
+				bReceiverConnected = false;
+			}
+
+		}
+		if(m_FrameType & ofxNDIframeinfoflags_sourcechange) {
+
+		}
 	} // endif pNDI_recv
 	else {
 		// No pNDI_recv - no sender connected
@@ -1415,6 +1552,26 @@ int ofxNDIreceive::GetFps()
 void ofxNDIreceive::ResetFps(double fps)
 {
 	m_fps = fps;
+}
+
+// Get queue stats (audio, metadata, image)
+NDIlib_recv_queue_t ofxNDIreceive::GetQueueLengths()
+{
+    NDIlib_recv_queue_t queue_stats;
+    if (p_NDILib && pNDI_recv){
+        p_NDILib->NDIlib_recv_get_queue(pNDI_recv, &queue_stats);
+    }
+    return queue_stats;
+}
+
+// Fetch performance metrics
+ofxNDIreceive::ofxNDIPerformanceMetrics ofxNDIreceive::GetPerformanceMetrics()
+{
+    ofxNDIPerformanceMetrics performance;
+    if (p_NDILib && pNDI_recv){
+        p_NDILib->NDIlib_recv_get_performance(pNDI_recv, &performance.total, &performance.dropped);
+    }
+    return performance;
 }
 
 //

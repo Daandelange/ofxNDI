@@ -171,7 +171,7 @@ public:
 	std::vector<std::string> GetSenderList();
 
 	// Received frame type (video, audio, metadata)
-	NDIlib_frame_type_e GetFrameType();
+	ofxNDIframeinfoflags GetFrameType();
 
 	// Received video format fourcc type
 	NDIlib_FourCC_video_type_e GetVideoType();
@@ -183,11 +183,27 @@ public:
 	// The current MetaData string
 	std::string GetMetadataString();
 
+	// Adds "connection" metadata, sent each time a sender connects
+	bool AddConnectionMetadataString(std::string message);
+	bool ClearConnectionMetadataStrings();
+
+	// Set to receive Medadata
+	void SetEnableMetadata(bool bEnableMetadata);
+
+	// Get if Medadata is enabled
+	bool GetEnableMetadata() const;
+
 	// The current video frame timestamp
 	int64_t GetVideoTimestamp();
 
 	// The current video frame timecode
 	int64_t GetVideoTimecode();
+
+	// The current audio frame timestamp
+	int64_t GetAudioTimestamp();
+
+	// The current audio frame timecode (libre/program-specific format)
+	int64_t GetAudioTimecode();
 
 	// Set preferred video format
 	// Default NDIlib_recv_color_format_UYVY_BGRA
@@ -202,7 +218,7 @@ public:
 	void SetUpload(bool bUpload = true);
 
 	// Get current upload mode
-	// True - asynchronouse
+	// True - asynchronous
 	bool GetUpload();
 
 	// Set to receive Audio
@@ -235,6 +251,12 @@ public:
 
 	// Timed received frame rate
 	int GetFps();
+
+	// Get metadata, video and audio queues
+	NDIlib_recv_queue_t GetQueueLengths();
+
+	// Dropped and total frames
+	ofxNDIreceive::ofxNDIPerformanceMetrics GetPerformanceMetrics();
 
 	// Basic receiver functions
 	ofxNDIreceive NDIreceiver;

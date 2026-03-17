@@ -219,7 +219,7 @@ bool ofxNDIsend::CreateSender(const char *sendername, unsigned int width, unsign
 		// Default string length
 		// Default Timecode NDIlib_send_timecode_synthesize (synthesized for us)
 		//
-		NDIlib_metadata_frame_t NDI_connection_type;
+		//NDIlib_metadata_frame_t NDI_connection_type;
 		std::string type = "<ndi_product long_name=\"ofxNDI sender ";
 		type += sendername; type += "\" ";
 		type += "             short_name=\"";
@@ -230,8 +230,7 @@ bool ofxNDIsend::CreateSender(const char *sendername, unsigned int width, unsign
 		type += "             session=\"default\" ";
 		type += "             model_name=\"none\" ";
 		type += "             serial=\"none\"/>";
-		NDI_connection_type.p_data = (char *)type.c_str();
-		p_NDILib->send_add_connection_metadata(pNDI_send, &NDI_connection_type);
+		AddConnectionMetadataString(type);
 		
 		// Create an non-interlaced frame at 60fps
 		if(p_frame) free((void *)p_frame);
@@ -418,6 +417,7 @@ bool ofxNDIsend::SendImage(const unsigned char * pixels,
 			metadata_frame.timecode = NDIlib_send_timecode_synthesize;
 			metadata_frame.p_data = (char *)m_metadataString.c_str(); // XML message format
 			p_NDILib->send_send_metadata(pNDI_send, &metadata_frame);
+			m_metadataString = "";
 		}
 
 		if (m_bAsync) {
@@ -527,6 +527,11 @@ bool ofxNDIsend::SendImage(const unsigned char * pixels,
 	}
 
 	return false;
+}
+
+// Manually set a video timecode
+void ofxNDIsend::SetVideoTimecode(int64_t timecode){
+	video_frame.timecode = timecode;
 }
 
 // Close sender and release resources
@@ -925,6 +930,51 @@ void ofxNDIsend::SetMetadata(bool bMetadata)
 void ofxNDIsend::SetMetadataString(std::string datastring)
 {
 	m_metadataString = datastring;
+}
+
+// Adds "connection" metadata strings, sent each time a sender connects.
+// eg: for providing information about your app.
+bool ofxNDIsend::AddConnectionMetadataString(std::string message)
+{
+	if (p_NDILib && pNDI_send && message.length()>0){
+		NDIlib_metadata_frame_t NDI_metadata;
+		NDI_metadata.p_data = message.data();
+		p_NDILib->send_add_connection_metadata(pNDI_send, &NDI_metadata);
+		return true;
+	}
+	return false;
+}
+
+// Clears "connection" metadata strings.
+bool ofxNDIsend::ClearConnectionMetadataStrings()
+{
+	if (p_NDILib && pNDI_send){
+		p_NDILib->send_clear_connection_metadata(pNDI_send);
+		return true;
+	}
+	return false;
+}
+
+// Returns any received metadata as a string
+std::string ofxNDIsend::ReceiveMetadataString(){
+	if (p_NDILib && pNDI_send){
+		NDIlib_metadata_frame_t metadata;
+		if (p_NDILib->send_capture(pNDI_send, &metadata, 0) == NDIlib_frame_type_metadata) {
+			std::string ret = metadata.p_data;
+			// Free the metadata message
+			p_NDILib->send_free_metadata(pNDI_send, &metadata);
+			return ret;
+		}
+	}
+	return "";
+}
+
+// Num connected clients / receivers
+std::size_t ofxNDIsend::GetNumClients(){
+	if (p_NDILib && pNDI_send){
+		return p_NDILib->send_get_no_connections(pNDI_send, 0);
+	}
+	return 0u;
 }
 
 // Get the current NDI SDK version
